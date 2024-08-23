@@ -1,0 +1,8 @@
+[package]
+name = "stats_provider"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sketchybar-rs = "0.2.0"
+sysinfo = "0.31.2"
