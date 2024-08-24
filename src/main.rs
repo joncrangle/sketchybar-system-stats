@@ -3,6 +3,7 @@ extern crate sketchybar_rs;
 use std::thread;
 use std::time::Duration;
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
+use tokio::task;
 
 fn cpu_usage(s: &mut System) -> f32 {
     s.refresh_cpu_all();
@@ -30,11 +31,8 @@ fn memory_usage(s: &System) -> (u64, u64) {
     (s.total_memory(), s.used_memory())
 }
 
-fn send_to_sketchybar(event: &str, vars: Option<&str>) {
-    let command = match vars {
-        Some(v) => format!("--trigger {} {}", event, v),
-        None => format!("--trigger {}", event),
-    };
+async fn send_to_sketchybar(event: &str, vars: String) {
+    let command = format!("--trigger {} {}", event, vars);
 
     if let Err(e) = sketchybar_rs::message(&command, None) {
         eprintln!("Failed to send to SketchyBar: {}", e);
@@ -43,7 +41,8 @@ fn send_to_sketchybar(event: &str, vars: Option<&str>) {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut s = System::new_with_specifics(
         RefreshKind::new()
             .with_cpu(CpuRefreshKind::new().with_cpu_usage())
@@ -67,9 +66,8 @@ fn main() {
             disk_usage_percentage
         );
 
-        send_to_sketchybar("system_stats", Some(&vars));
-
         println!("Program is running. Current message: {}", vars);
+        task::spawn(async move { send_to_sketchybar("system_stats", vars).await });
 
         thread::sleep(Duration::from_secs(5));
     }
