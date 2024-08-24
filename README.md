@@ -15,6 +15,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then use `cargo` to build the binary:
 
 ```bash
+git clone https://github.com/joncrangle/sketchybar-system-stats.git
+cd sketchybar-system-stats
 cargo build --release
 ```
 
@@ -38,7 +40,7 @@ Options:
   -V, --version               Print version
 ```
 
-For example, to get usage percentages at a refresh interval of 2 seconds:
+Example: trigger event with cpu, disk and memory usage percentages at a refresh interval of 2 seconds:
 ```bash
 stats_provider --cpu usage --disk usage --memory usage --interval 2
 ```
@@ -61,28 +63,9 @@ Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="7%" MEMORY_US
 
 ## Usage with Sketchybar
 
-[!TODO] Test this example with a `sketchybarrc` config.
-
-Run the `stats_provider` event provider with the desired options. Alternatively, you can add it to your `sketchybarrc` config:
-
-```bash
-killall stats_provider
-# Update with path to stats_provider
-$CONFIG_DIR/stats_provider/target/release/stats_provider --cpu usage --disk usage --memory usage &
-```
-
-Subscribe to the `system_stats` event and update use the environment variables to update items.
-
-The following example shows how to use the `stats_provider` event provider to update the disk usage percentage.
-
-```bash
-sketchybar --add item disk right         \
-           --set disk                    \
-                 label=$DISK_USAGE       \
-           --subscribe disk system_stats
-```
-
 ### Environment variables that can be provided by the `system_stats` event
+
+Run `stats_provider` with the desired options. Subscribe to the `system_stats` event and use the environment variables to update your Sketchybar items.
 
 | Variable       | Description         |
 | -------------- | ------------------- |
@@ -98,12 +81,32 @@ sketchybar --add item disk right         \
 | `MEMORY_USAGE` | Memory usage %      |
 | `MEMORY_USED`  | Used memory GB      |
 
-## Sample usage with SbarLua
+### `sketchybarrc` file
 
-The following example shows how to use the `stats_provider` event provider to update the disk usage percentage.
+[!TODO] Test this example with a `sketchybarrc` config.
+
+Run `stats_provider` with desired options by including it in your `sketchybarrc` config:
+
+```bash
+killall stats_provider
+# Update with path to stats_provider
+$CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --disk usage --memory usage &
+```
+
+Example: use `stats_provider` to add an item `disk_usage`, subscribe to the `system_stats` event and update the `disk_usage` item.
+
+```bash
+sketchybar --add item disk_usage right         \
+           --set disk                    \
+                 label=$DISK_USAGE       \
+           --subscribe disk_usage system_stats
+```
+
+### SbarLua module
+
 ```lua
 -- Update with path to stats_provider
-sbar.exec('killall stats_provider >/dev/null; $CONFIG_DIR/stats_provider/target/release/stats_provider --cpu usage --disk usage --memory usage')
+sbar.exec('killall stats_provider >/dev/null; $CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --disk usage --memory usage')
 
 -- Subscribe and use the `DISK_USAGE` var
 local disk = sbar.add('item', 'disk', {
