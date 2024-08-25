@@ -3,7 +3,7 @@ extern crate sketchybar_rs;
 use clap::Parser;
 use std::thread;
 use std::time::Duration;
-use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
+use sysinfo::{Components, CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
 #[derive(Parser, Debug)]
 #[command(name = "stats_provider", version, about, long_about = None, arg_required_else_help = true)]
@@ -11,7 +11,7 @@ struct Cli {
     #[arg(short = 'a', long, help = "Get all stats")]
     all: bool,
 
-    #[arg(short = 'c', long, num_args = 0.., value_parser = ["count", "usage"])]
+    #[arg(short = 'c', long, num_args = 0.., value_parser = ["count", "temperature", "usage"])]
     cpu: Option<Vec<String>>,
 
     #[arg(short = 'd', long, num_args = 0.., value_parser = ["count", "free", "total", "usage", "used"])]
@@ -38,12 +38,43 @@ fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
     let cpu_count = s.cpus().len() as f32;
     let total_usage: f32 = s.cpus().iter().map(|cpu| cpu.cpu_usage()).sum();
 
-    let mut result = String::with_capacity(100);
+    let mut result = String::new();
 
     for &flag in flags {
         match flag {
             "count" => {
                 result.push_str(&format!("CPU_COUNT=\"{}\" ", cpu_count));
+            }
+            "temperature" => {
+                let components = Components::new_with_refreshed_list();
+                let mut total_temp: f32 = 0.0;
+                let mut count: u32 = 0;
+
+                let cpu_labels = ["CPU", "PMU", "SOC"];
+
+                for component in &components {
+                    if cpu_labels
+                        .iter()
+                        .any(|&label| component.label().contains(label))
+                    {
+                        total_temp += component.temperature();
+                        count += 1;
+                    }
+                }
+
+                let average_temp = if count > 0 {
+                    total_temp / count as f32
+                } else {
+                    -1.0
+                };
+
+                let formatted_temp = if average_temp != -1.0 {
+                    format!("{:.1}", average_temp)
+                } else {
+                    "N/A".to_string()
+                };
+
+                result.push_str(&format!("CPU_TEMP=\"{}°C\" ", formatted_temp));
             }
             "usage" => {
                 let avg_cpu_usage: f32 = (total_usage / cpu_count).round();
@@ -56,8 +87,7 @@ fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
     result.trim_end().to_string()
 }
 
-fn get_disk_stats(flags: &[&str]) -> String {
-    let disks = Disks::new_with_refreshed_list();
+fn get_disk_stats(disks: &Disks, flags: &[&str]) -> String {
     let (total_space, used_space) = disks.list().iter().fold((0, 0), |(total, used), disk| {
         (
             total + disk.total_space(),
@@ -70,7 +100,7 @@ fn get_disk_stats(flags: &[&str]) -> String {
         0
     };
 
-    let mut result = String::with_capacity(100);
+    let mut result = String::new();
 
     for &flag in flags {
         match flag {
@@ -110,7 +140,7 @@ fn get_memory_stats(s: &System, flags: &[&str]) -> String {
     let used_memory = s.used_memory();
     let memory_usage_percentage = ((used_memory as f32 / total_memory as f32) * 100.0).round();
 
-    let mut result = String::with_capacity(100);
+    let mut result = String::new();
 
     for &flag in flags {
         match flag {
@@ -168,27 +198,38 @@ fn main() {
         .with_memory(MemoryRefreshKind::new().with_ram());
 
     let mut s = System::new_with_specifics(refresh_kind.clone());
+    let mut disks = Disks::new_with_refreshed_list();
 
-    let all_cpu_flags = &["count", "usage"];
-    let all_memory_flags = &["free", "total", "usage", "used"];
+    let all_cpu_flags = &["count", "temperature", "usage"];
     let all_disk_flags = &["count", "free", "total", "usage", "used"];
+    let all_memory_flags = &["free", "total", "usage", "used"];
 
     loop {
         s.refresh_specifics(refresh_kind.clone());
+        disks.refresh();
 
-        let mut commands = String::with_capacity(300);
+        let mut commands = String::new();
 
         if cli.all {
             commands.push_str(&get_cpu_stats(&s, all_cpu_flags));
             commands.push_str(" ");
+            commands.push_str(&get_disk_stats(&disks, all_disk_flags));
+            commands.push_str(" ");
             commands.push_str(&get_memory_stats(&s, all_memory_flags));
             commands.push_str(" ");
-            commands.push_str(&get_disk_stats(all_disk_flags));
         } else {
             if let Some(cpu_flags) = &cli.cpu {
                 commands.push_str(&get_cpu_stats(
                     &s,
                     &cpu_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
+                ));
+                commands.push_str(" ");
+            }
+
+            if let Some(disk_flags) = &cli.disk {
+                commands.push_str(&get_disk_stats(
+                    &disks,
+                    &disk_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
                 ));
                 commands.push_str(" ");
             }
@@ -200,13 +241,6 @@ fn main() {
                         .iter()
                         .map(String::as_str)
                         .collect::<Vec<&str>>(),
-                ));
-                commands.push_str(" ");
-            }
-
-            if let Some(disk_flags) = &cli.disk {
-                commands.push_str(&get_disk_stats(
-                    &disk_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
                 ));
                 commands.push_str(" ");
             }

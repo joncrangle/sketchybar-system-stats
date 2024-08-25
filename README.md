@@ -31,7 +31,7 @@ Usage: stats_provider [OPTIONS]
 
 Options:
   -a, --all                   Get all stats
-  -c, --cpu [<CPU>...]        [possible values: count, usage]
+  -c, --cpu [<CPU>...]        [possible values: count, temperature, usage]
   -d, --disk [<DISK>...]      [possible values: count, free, total, usage, used]
   -m, --memory [<MEMORY>...]  [possible values: free, total, usage, used]
   -i, --interval <INTERVAL>   Refresh interval in seconds [default: 5]
@@ -70,6 +70,7 @@ Run `stats_provider` with the desired options. Subscribe to the `system_stats` e
 | Variable       | Description         |
 | -------------- | ------------------- |
 | `CPU_COUNT`    | Number of CPU cores |
+| `CPU_TEMP`     | CPU usage %         |
 | `CPU_USAGE`    | CPU usage %         |
 | `DISK_COUNT`   | Number of disks     |
 | `DISK_FREE`    | Free disk space GB  |
