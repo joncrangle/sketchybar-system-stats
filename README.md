@@ -63,9 +63,7 @@ Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="5%" DISK_USAG
 
 ## Usage with Sketchybar
 
-### Environment variables that can be provided by the `system_stats` event
-
-Run `stats_provider` with the desired options. Subscribe to the `system_stats` event and use the environment variables to update your Sketchybar items.
+Environment variables that can be provided by the `system_stats` event
 
 | Variable        | Description         |
 | --------------- | ------------------- |
@@ -89,8 +87,6 @@ Run `stats_provider` with the desired options. Subscribe to the `system_stats` e
 
 ### `sketchybarrc` file
 
-[!TODO] Test this example with a `sketchybarrc` config.
-
 Run `stats_provider` with desired options by including it in your `sketchybarrc` config:
 
 ```bash
@@ -102,9 +98,8 @@ $CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --
 Example: use `stats_provider` to add an item `disk_usage`, subscribe to the `system_stats` event and update the `disk_usage` item.
 
 ```bash
-sketchybar --add item disk_usage right   \
-           --set disk                    \
-                 label=$DISK_USAGE       \
+sketchybar --add item disk_usage right \
+           --set disk_usage script="sketchybar --set disk_usage label=\$DISK_USAGE" \
            --subscribe disk_usage system_stats
 ```
 
