@@ -25,29 +25,29 @@ fn main() {
     );
 
     let refresh_kind = stats::build_refresh_kind();
-    let mut s = System::new_with_specifics(refresh_kind.clone());
+    let mut s = System::new_with_specifics(refresh_kind);
     let mut disks = Disks::new_with_refreshed_list();
 
     loop {
-        s.refresh_specifics(refresh_kind.clone());
+        s.refresh_specifics(refresh_kind);
         disks.refresh();
 
         let mut commands = String::new();
 
         if cli.all {
             commands.push_str(&get_cpu_stats(&s, &cli::all_cpu_flags()));
-            commands.push_str(" ");
+            commands.push(' ');
             commands.push_str(&get_disk_stats(&disks, &cli::all_disk_flags()));
-            commands.push_str(" ");
+            commands.push(' ');
             commands.push_str(&get_memory_stats(&s, &cli::all_memory_flags()));
-            commands.push_str(" ");
+            commands.push(' ');
         } else {
             if let Some(cpu_flags) = &cli.cpu {
                 commands.push_str(&get_cpu_stats(
                     &s,
                     &cpu_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
                 ));
-                commands.push_str(" ");
+                commands.push(' ');
             }
 
             if let Some(disk_flags) = &cli.disk {
@@ -55,7 +55,7 @@ fn main() {
                     &disks,
                     &disk_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
                 ));
-                commands.push_str(" ");
+                commands.push(' ');
             }
 
             if let Some(memory_flags) = &cli.memory {
@@ -66,7 +66,7 @@ fn main() {
                         .map(String::as_str)
                         .collect::<Vec<&str>>(),
                 ));
-                commands.push_str(" ");
+                commands.push(' ');
             }
         }
 
