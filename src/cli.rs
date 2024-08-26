@@ -35,7 +35,7 @@ pub fn parse_args() -> Cli {
 }
 
 pub fn all_cpu_flags() -> Vec<&'static str> {
-    vec!["count", "temperature", "usage"]
+    vec!["count", "frequency", "temperature", "usage"]
 }
 
 pub fn all_disk_flags() -> Vec<&'static str> {

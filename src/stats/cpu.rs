@@ -2,7 +2,6 @@ use sysinfo::{Components, System};
 
 pub fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
     let cpu_count = s.cpus().len() as f32;
-    let total_usage: f32 = s.cpus().iter().map(|cpu| cpu.cpu_usage()).sum();
 
     let mut result = String::new();
 
@@ -10,6 +9,13 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
         match flag {
             "count" => {
                 result.push_str(&format!("CPU_COUNT=\"{}\" ", cpu_count));
+            }
+            "frequency" => {
+                let total_frequency: u64 = s.cpus().iter().map(|cpu| cpu.frequency()).sum();
+                result.push_str(&format!(
+                    "CPU_FREQUENCY=\"{}MHz\" ",
+                    total_frequency / cpu_count as u64
+                ));
             }
             "temperature" => {
                 let components = Components::new_with_refreshed_list();
@@ -43,8 +49,10 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
                 result.push_str(&format!("CPU_TEMP=\"{}°C\" ", formatted_temp));
             }
             "usage" => {
-                let avg_cpu_usage: f32 = (total_usage / cpu_count).round();
-                result.push_str(&format!("CPU_USAGE=\"{:.0}%\" ", avg_cpu_usage));
+                result.push_str(&format!(
+                    "CPU_USAGE=\"{:.0}%\" ",
+                    (s.global_cpu_usage() / cpu_count).round()
+                ));
             }
             _ => {}
         }
