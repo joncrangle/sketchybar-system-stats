@@ -96,7 +96,7 @@ fn main() {
             if let Some(networks_flags) = &cli.network {
                 commands.push_str(&get_network_stats(
                     &networks,
-                    Some(&networks_flags),
+                    Some(networks_flags),
                     cli.interval,
                 ));
                 commands.push(' ');
