@@ -83,7 +83,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: cargo clippy
         run: cargo clippy --locked --no-deps --workspace --all-targets --all-features --verbose -- -D warnings
