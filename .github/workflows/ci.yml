@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Testing ${{ matrix.build_target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - build_target: macos-aarch64
+            os: macos-latest
+            artifact_suffix: macos-aarch64
+            target: aarch64-apple-darwin
+          - build_target: macos-x86_64
+            os: macos-latest
+            artifact_suffix: macos-x86_64
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Running cargo build
+        run: cargo build --verbose --locked --target ${{ matrix.target }}
+
+      - name: Running cargo test
+        run: cargo test --verbose --locked --target ${{ matrix.target }}
+
+  # Check Rust code formatting.
+  fmt:
+    name: Running `cargo fmt`
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+  # Run `cargo clippy` on all the targets in all workspace members with all
+  # features enabled, and return an error if there are any clippy suggestions.
+  clippy:
+    name: Running `cargo clippy`
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - build_target: macos-aarch64
+            os: macos-latest
+            artifact_suffix: macos-aarch64
+            target: aarch64-apple-darwin
+          - build_target: macos-x86_64
+            os: macos-latest
+            artifact_suffix: macos-x86_64
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: cargo clippy
+        run: cargo clippy --locked --no-deps --workspace --all-targets --all-features --verbose -- -D warnings
