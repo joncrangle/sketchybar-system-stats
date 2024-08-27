@@ -93,10 +93,10 @@ fn main() {
                 commands.push(' ');
             }
 
-            if let Some(networks_flags) = &cli.network {
+            if let Some(network_flags) = &cli.network {
                 commands.push_str(&get_network_stats(
                     &networks,
-                    Some(networks_flags),
+                    Some(network_flags),
                     cli.interval,
                 ));
                 commands.push(' ');
