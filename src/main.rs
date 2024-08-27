@@ -63,6 +63,8 @@ fn main() {
             commands.push(' ');
             commands.push_str(&get_network_stats(&networks, None, cli.interval));
             commands.push(' ');
+            commands.push_str(&format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
+            commands.push(' ');
         } else {
             if let Some(cpu_flags) = &cli.cpu {
                 commands.push_str(&get_cpu_stats(
