@@ -74,13 +74,12 @@ jobs:
       - name: Set target variables
         shell: bash
         run: |
-          echo "TARGET_FLAGS=--target ${{ matrix.target }}/release" >> $GITHUB_ENV
-          echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+          echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+          echo "TARGET_DIR=./target/${{ matrix.target }}/release" >> $GITHUB_ENV
 
       - name: Show command used for Cargo
         shell: bash
         run: |
-          echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET_FLAGS }}"
           echo "target dir is: ${{ env.TARGET_DIR }}"
 
@@ -88,7 +87,7 @@ jobs:
         shell: bash
         run: |
           cargo build --verbose --release ${{ env.TARGET_FLAGS }}
-            bin="target/${{ matrix.target }}/stats_provider"
+          bin="${{ env.TARGET_DIR }}/stats_provider"
           echo "BIN=$bin" >> $GITHUB_ENV
 
       - name: Strip release binary (macos)
@@ -96,16 +95,18 @@ jobs:
         shell: bash
         run: strip "$BIN"
 
-      - name: Copy README and LICENSE to target directory
-        shell: bash
-        run: |
-          cp README.md LICENSE "${{ env.TARGET_DIR }}/"
-
       - name: Determine archive name
         shell: bash
         run: |
           version="${{ needs.create-release.outputs.version }}"
           echo "ARCHIVE=stats_provider-$version-${{ matrix.target }}" >> $GITHUB_ENV
+
+      - name: Creating directory for archive
+        shell: bash
+        run: |
+          mkdir -p "$ARCHIVE"
+          cp "$BIN" "$ARCHIVE"/
+          cp {README.md,LICENSE} "$ARCHIVE"/
 
       - name: Build archive
         shell: bash
