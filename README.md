@@ -4,15 +4,21 @@
 
 This is a simple event provider for [Sketchybar](https://github.com/FelixKratz/SketchyBar?tab=readme-ov-file) that sends system stats to Sketchybar via the event trigger `system_stats`.
 
-## Build instructions
+## Installation
 
-At this time it is necessary to compile and install the crate locally. The simplest way to do this is to [install the Rust toolchain](https://rustup.rs/).
+### Prebuilt binaries
+
+You can download a prebuilt binary for Apple Silicon (aarch64) and Intel Macs (x86_64) from the [latest release](https://github.com/joncrangle/sketchybar-system-stats/releases).
+
+### Build locally
+
+1. [Install the Rust toolchain](https://rustup.rs/).
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Then use `cargo` to build the binary:
+2. Use `cargo` to build the binary:
 
 ```bash
 git clone https://github.com/joncrangle/sketchybar-system-stats.git
