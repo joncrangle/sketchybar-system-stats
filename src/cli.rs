@@ -3,17 +3,23 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "stats_provider", version, about, long_about = None, arg_required_else_help = true)]
 pub struct Cli {
-    #[arg(short = 'a', long, help = "Get all stats")]
+    #[arg(short = 'a', long, num_args = 0, help = "Get all stats")]
     pub all: bool,
 
-    #[arg(short = 'c', long, num_args = 0.., value_parser = all_cpu_flags())]
+    #[arg(short = 'c', long, num_args = 1.., value_parser = all_cpu_flags(), help = "Get CPU stats")]
     pub cpu: Option<Vec<String>>,
 
-    #[arg(short = 'd', long, num_args = 0.., value_parser = all_disk_flags())]
+    #[arg(short = 'd', long, num_args = 1.., value_parser = all_disk_flags(), help = "Get disk stats")]
     pub disk: Option<Vec<String>>,
 
-    #[arg(short = 'm', long, num_args = 0.., value_parser = all_memory_flags())]
+    #[arg(short = 'm', long, num_args = 1.., value_parser = all_memory_flags(), help = "Get memory stats")]
     pub memory: Option<Vec<String>>,
+
+    #[arg(short = 'n', long, num_args = 1.., help = "Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.")]
+    pub network: Option<Vec<String>>,
+
+    #[arg(short = 's', long, num_args = 1.., value_parser = all_system_flags(), help = "Get system stats")]
+    pub system: Option<Vec<String>>,
 
     #[arg(
         short = 'i',
@@ -55,4 +61,17 @@ pub fn all_memory_flags() -> Vec<&'static str> {
     flags.extend(all_ram_flags());
     flags.extend(all_swp_flags());
     flags
+}
+
+pub fn all_system_flags() -> Vec<&'static str> {
+    vec![
+        "arch",
+        "distro",
+        "host_name",
+        "kernel_version",
+        "name",
+        "os_version",
+        "long_os_version",
+        "uptime",
+    ]
 }
