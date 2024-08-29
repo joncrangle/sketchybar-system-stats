@@ -40,6 +40,7 @@ Options:
   -c, --cpu <CPU>...          Get CPU stats [possible values: count, frequency, temperature, usage]
   -d, --disk <DISK>...        Get disk stats [possible values: count, free, total, usage, used]
   -m, --memory <MEMORY>...    Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
+  -b, --battery <BATTERY>...  Get battery stats [possible values: count, percentage, state, time_to_empty, time_to_full]
   -n, --network <NETWORK>...  Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
   -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version, uptime]
   -i, --interval <INTERVAL>   Refresh interval in seconds [default: 5]
@@ -59,7 +60,7 @@ Add the `--verbose` flag to see more detailed output:
 ```console
 $ stats_provider --cpu usage --disk usage --memory ram_usage --interval 2 --verbose
 SketchyBar Stats Provider is running.
-Stats Provider CLI: Cli { all: false, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, interval: 2, bar: None, verbose: true }
+Stats Provider CLI: Cli { all: false, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), battery: None, network: None, system: None, interval: 2, bar: None, verbose: true }
 Successfully sent to SketchyBar: --add event system_stats
 Current message: CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
@@ -73,36 +74,41 @@ Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="5%" DISK_USAG
 
 Environment variables that can be provided by the `system_stats` event
 
-| Variable                 | Description                               |
-| ------------------------ | ----------------------------------------- |
-| `ARCH`                   | System architecture                       |
-| `CPU_COUNT`              | Number of CPU cores                       |
-| `CPU_FREQUENCY`          | CPU frequency MHz                         |
-| `CPU_TEMP`               | CPU temperature °C                        |
-| `CPU_USAGE`              | CPU usage %                               |
-| `DISK_COUNT`             | Number of disks                           |
-| `DISK_FREE`              | Free disk space GB                        |
-| `DISK_TOTAL`             | Total disk space GB                       |
-| `DISK_USAGE`             | Disk usage %                              |
-| `DISK_USED`              | Used disk space GB                        |
-| `DISTRO`                 | System distribution                       |
-| `HOST_NAME`              | System host name                          |
-| `KERNEL_VERSION`         | System kernel version                     |
-| `NETWORK_RX_{INTERFACE}` | Received KB/s from specified interface    |
-| `NETWORK_TX_{INTERFACE}` | Transmitted KB/s from specified interface |
-| `OS_VERSION`             | System OS version                         |
-| `LONG_OS_VERSION`        | System long OS version                    |
-| `RAM_TOTAL`              | Total memory GB                           |
-| `RAM_AVAILABLE`          | Available memory GB                       |
-| `RAM_TOTAL`              | Total memory GB                           |
-| `RAM_USAGE`              | Memory usage %                            |
-| `RAM_USED`               | Used memory GB                            |
-| `SWP_FREE`               | Free swap GB                              |
-| `SWP_TOTAL`              | Total swap GB                             |
-| `SWP_USAGE`              | Swap usage %                              |
-| `SWP_USED`               | Used swap GB                              |
-| `SYSTEM_NAME`            | System name (i.e. Darwin)                 |
-| `UPTIME`                 | System uptime in minutes                  |
+| Variable                 | Description                                                 |
+| ------------------------ | ----------------------------------------------------------- |
+| `ARCH`                   | System architecture                                         |
+| `BATTERY_COUNT`          | Number of batteries                                         |
+| `BATTERY_PERCENTAGE`     | Battery percentage %                                        |
+| `BATTERY_STATE`          | Battery state (Unknown, Charging, Discharging, Empty, Full) |
+| `BATTERY_TIME_TO_EMPTY`  | Battery time to empty in minutes                            |
+| `BATTERY_TIME_TO_FULL`   | Battery time to full in minutes                             |
+| `CPU_COUNT`              | Number of CPU cores                                         |
+| `CPU_FREQUENCY`          | CPU frequency MHz                                           |
+| `CPU_TEMP`               | CPU temperature °C                                          |
+| `CPU_USAGE`              | CPU usage %                                                 |
+| `DISK_COUNT`             | Number of disks                                             |
+| `DISK_FREE`              | Free disk space GB                                          |
+| `DISK_TOTAL`             | Total disk space GB                                         |
+| `DISK_USAGE`             | Disk usage %                                                |
+| `DISK_USED`              | Used disk space GB                                          |
+| `DISTRO`                 | System distribution                                         |
+| `HOST_NAME`              | System host name                                            |
+| `KERNEL_VERSION`         | System kernel version                                       |
+| `NETWORK_RX_{INTERFACE}` | Received KB/s from specified interface                      |
+| `NETWORK_TX_{INTERFACE}` | Transmitted KB/s from specified interface                   |
+| `OS_VERSION`             | System OS version                                           |
+| `LONG_OS_VERSION`        | System long OS version                                      |
+| `RAM_TOTAL`              | Total memory GB                                             |
+| `RAM_AVAILABLE`          | Available memory GB                                         |
+| `RAM_TOTAL`              | Total memory GB                                             |
+| `RAM_USAGE`              | Memory usage %                                              |
+| `RAM_USED`               | Used memory GB                                              |
+| `SWP_FREE`               | Free swap GB                                                |
+| `SWP_TOTAL`              | Total swap GB                                               |
+| `SWP_USAGE`              | Swap usage %                                                |
+| `SWP_USED`               | Used swap GB                                                |
+| `SYSTEM_NAME`            | System name (i.e. Darwin)                                   |
+| `UPTIME`                 | System uptime in minutes                                    |
 
 > [!NOTE]
 > System stats that are not expected to change between system restarts (e.g. `NAME`, `OS_VERSION`, etc.) are sent when the app binary starts, but are not refreshed.
@@ -142,7 +148,7 @@ end)
 
 ## Why?
 
-I wanted a single simple, lightweight binary to provide stats to Sketchybar. I also wanted to learn how to code in Rust, and learning by doing is a great way to learn.
+I wanted a single simple, lightweight binary to provide stats to Sketchybar. I also wanted to learn how to code in Rust, and learning by doing is how I learn best.
 
 ## Thanks
 
