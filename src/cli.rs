@@ -15,6 +15,9 @@ pub struct Cli {
     #[arg(short = 'm', long, num_args = 1.., value_parser = all_memory_flags(), help = "Get memory stats")]
     pub memory: Option<Vec<String>>,
 
+    #[arg(short = 'b', long, num_args = 1.., value_parser = all_battery_flags(), help = "Get battery stats")]
+    pub battery: Option<Vec<String>>,
+
     #[arg(short = 'n', long, num_args = 1.., help = "Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.")]
     pub network: Option<Vec<String>>,
 
@@ -38,6 +41,16 @@ pub struct Cli {
 
 pub fn parse_args() -> Cli {
     Cli::parse()
+}
+
+pub fn all_battery_flags() -> Vec<&'static str> {
+    vec![
+        "count",
+        "percentage",
+        "state",
+        "time_to_empty",
+        "time_to_full",
+    ]
 }
 
 pub fn all_cpu_flags() -> Vec<&'static str> {

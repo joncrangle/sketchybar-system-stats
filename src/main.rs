@@ -1,9 +1,14 @@
+extern crate starship_battery as battery;
+
 mod cli;
 mod sketchybar;
 mod stats;
 
 use sketchybar::send_to_sketchybar;
-use stats::{get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats};
+use stats::{
+    get_battery_stats, get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats,
+    get_system_stats,
+};
 use std::thread;
 use std::time::Duration;
 use sysinfo::{Disks, Networks, System};
@@ -55,6 +60,8 @@ fn main() {
         let mut commands = String::new();
 
         if cli.all {
+            commands.push_str(&get_battery_stats(&cli::all_battery_flags()));
+            commands.push(' ');
             commands.push_str(&get_cpu_stats(&system, &cli::all_cpu_flags()));
             commands.push(' ');
             commands.push_str(&get_disk_stats(&disks, &cli::all_disk_flags()));
@@ -66,6 +73,15 @@ fn main() {
             commands.push_str(&format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
             commands.push(' ');
         } else {
+            if let Some(battery_flags) = &cli.battery {
+                commands.push_str(&get_battery_stats(
+                    &battery_flags
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<Vec<&str>>(),
+                ));
+                commands.push(' ');
+            }
             if let Some(cpu_flags) = &cli.cpu {
                 commands.push_str(&get_cpu_stats(
                     &system,
