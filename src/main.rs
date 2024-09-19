@@ -47,12 +47,13 @@ fn main() {
         );
     };
 
+    let mut commands = String::with_capacity(1024);
+
     loop {
+        commands.clear();
         system.refresh_specifics(refresh_kind);
         disks.refresh();
         networks.refresh();
-
-        let mut commands = String::new();
 
         if cli.all {
             commands.push_str(&get_cpu_stats(&system, &cli::all_cpu_flags()));
@@ -109,15 +110,17 @@ fn main() {
             }
         }
 
-        let message = commands.trim_end().to_string();
+        if commands.ends_with(' ') {
+            commands.pop();
+        }
 
         if cli.verbose {
-            println!("Current message: {}", message);
+            println!("Current message: {}", commands);
         }
         send_to_sketchybar(
             "trigger",
             "system_stats",
-            Some(message),
+            Some(commands.clone()),
             cli.bar.as_ref(),
             cli.verbose,
         );
