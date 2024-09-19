@@ -232,7 +232,7 @@ dependencies = [
 
 [[package]]
 name = "stats_provider"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "clap",
  "sketchybar-rs",
