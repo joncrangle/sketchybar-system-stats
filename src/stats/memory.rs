@@ -3,8 +3,8 @@ use sysinfo::System;
 
 const BYTES_PER_GB: f32 = 1_073_741_824.0;
 
-pub fn get_memory_stats(s: &System, flags: &[&str]) -> String {
-    let mut result = String::new();
+pub fn get_memory_stats(s: &System, flags: &[&str]) -> Vec<String> {
+    let mut result = Vec::new();
 
     let ram_flag_present = flags
         .iter()
@@ -41,50 +41,50 @@ pub fn get_memory_stats(s: &System, flags: &[&str]) -> String {
     for &flag in flags {
         match flag {
             "ram_available" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "RAM_AVAILABLE=\"{:.1}GB\" ",
                     s.available_memory() as f32 / BYTES_PER_GB
                 ));
             }
             "ram_total" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "RAM_TOTAL=\"{:.1}GB\" ",
                     ram_total as f32 / BYTES_PER_GB
                 ));
             }
             "ram_used" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "RAM_USED=\"{:.1}GB\" ",
                     ram_used as f32 / BYTES_PER_GB
                 ));
             }
             "ram_usage" => {
-                result.push_str(&format!("RAM_USAGE=\"{}%\" ", ram_usage_percentage));
+                result.push(format!("RAM_USAGE=\"{}%\" ", ram_usage_percentage));
             }
             "swp_free" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "SWP_FREE=\"{:.1}GB\" ",
                     s.free_swap() as f32 / BYTES_PER_GB
                 ));
             }
             "swp_total" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "SWP_TOTAL=\"{:.1}GB\" ",
                     swp_total as f32 / BYTES_PER_GB
                 ));
             }
             "swp_used" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "SWP_USED=\"{:.1}GB\" ",
                     swp_used as f32 / BYTES_PER_GB
                 ));
             }
             "swp_usage" => {
-                result.push_str(&format!("SWP_USAGE=\"{}%\" ", swp_usage_percentage));
+                result.push(format!("SWP_USAGE=\"{}%\" ", swp_usage_percentage));
             }
             _ => {}
         }
     }
 
-    result.trim_end().to_string()
+    result
 }

@@ -1,18 +1,18 @@
 use sysinfo::{Components, System};
 
-pub fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
+pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
     let cpu_count = s.cpus().len() as f32;
 
-    let mut result = String::new();
+    let mut result = Vec::new();
 
     for &flag in flags {
         match flag {
             "count" => {
-                result.push_str(&format!("CPU_COUNT=\"{}\" ", cpu_count));
+                result.push(format!("CPU_COUNT=\"{}\" ", cpu_count));
             }
             "frequency" => {
                 let total_frequency: u64 = s.cpus().iter().map(|cpu| cpu.frequency()).sum();
-                result.push_str(&format!(
+                result.push(format!(
                     "CPU_FREQUENCY=\"{}MHz\" ",
                     total_frequency / cpu_count as u64
                 ));
@@ -46,10 +46,10 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
                     "N/A".to_string()
                 };
 
-                result.push_str(&format!("CPU_TEMP=\"{}°C\" ", formatted_temp));
+                result.push(format!("CPU_TEMP=\"{}°C\" ", formatted_temp));
             }
             "usage" => {
-                result.push_str(&format!(
+                result.push(format!(
                     "CPU_USAGE=\"{:.0}%\" ",
                     (s.global_cpu_usage() / cpu_count).round()
                 ));
@@ -58,5 +58,5 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> String {
         }
     }
 
-    result.trim_end().to_string()
+    result
 }

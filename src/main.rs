@@ -41,7 +41,7 @@ fn main() {
         send_to_sketchybar(
             "trigger",
             "system_stats",
-            Some(get_system_stats(&system_flags)),
+            Some(get_system_stats(&system_flags).join("")),
             cli.bar.as_ref(),
             cli.verbose,
         );
@@ -56,62 +56,55 @@ fn main() {
         networks.refresh();
 
         if cli.all {
-            commands.push_str(&get_cpu_stats(&system, &cli::all_cpu_flags()));
-            commands.push(' ');
-            commands.push_str(&get_disk_stats(&disks, &cli::all_disk_flags()));
-            commands.push(' ');
-            commands.push_str(&get_memory_stats(&system, &cli::all_memory_flags()));
-            commands.push(' ');
-            commands.push_str(&get_network_stats(&networks, None, cli.interval));
-            commands.push(' ');
-            commands.push_str(&format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
-            commands.push(' ');
+            commands.push_str(&get_cpu_stats(&system, &cli::all_cpu_flags()).join(""));
+            commands.push_str(&get_disk_stats(&disks, &cli::all_disk_flags()).join(""));
+            commands.push_str(&get_memory_stats(&system, &cli::all_memory_flags()).join(""));
+            commands.push_str(&get_network_stats(&networks, None, cli.interval).join(""));
+            commands.push_str(&format!("UPTIME=\"{} mins\"", System::uptime() / 60));
         } else {
             if let Some(cpu_flags) = &cli.cpu {
-                commands.push_str(&get_cpu_stats(
-                    &system,
-                    &cpu_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
-                ));
-                commands.push(' ');
+                commands.push_str(
+                    &get_cpu_stats(
+                        &system,
+                        &cpu_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
+                    )
+                    .join(""),
+                );
             }
 
             if let Some(disk_flags) = &cli.disk {
-                commands.push_str(&get_disk_stats(
-                    &disks,
-                    &disk_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
-                ));
-                commands.push(' ');
+                commands.push_str(
+                    &get_disk_stats(
+                        &disks,
+                        &disk_flags.iter().map(String::as_str).collect::<Vec<&str>>(),
+                    )
+                    .join(""),
+                );
             }
 
             if let Some(memory_flags) = &cli.memory {
-                commands.push_str(&get_memory_stats(
-                    &system,
-                    &memory_flags
-                        .iter()
-                        .map(String::as_str)
-                        .collect::<Vec<&str>>(),
-                ));
-                commands.push(' ');
+                commands.push_str(
+                    &get_memory_stats(
+                        &system,
+                        &memory_flags
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<Vec<&str>>(),
+                    )
+                    .join(""),
+                );
             }
 
             if let Some(network_flags) = &cli.network {
-                commands.push_str(&get_network_stats(
-                    &networks,
-                    Some(network_flags),
-                    cli.interval,
-                ));
-                commands.push(' ');
+                commands.push_str(
+                    &get_network_stats(&networks, Some(network_flags), cli.interval).join(""),
+                );
             }
 
             // Get system stat that changes within the main loop
             if include_uptime {
                 commands.push_str(&format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
-                commands.push(' ');
             }
-        }
-
-        if commands.ends_with(' ') {
-            commands.pop();
         }
 
         if cli.verbose {
