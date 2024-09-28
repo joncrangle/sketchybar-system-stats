@@ -3,7 +3,7 @@ extern crate sketchybar_rs;
 pub fn send_to_sketchybar(
     flag: &str,
     event: &str,
-    vars: Option<String>,
+    vars: Option<&str>,
     bar: Option<&String>,
     verbose: bool,
 ) {

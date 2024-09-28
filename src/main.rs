@@ -41,7 +41,7 @@ fn main() {
         send_to_sketchybar(
             "trigger",
             "system_stats",
-            Some(get_system_stats(&system_flags).join("")),
+            Some(&get_system_stats(&system_flags).join("")),
             cli.bar.as_ref(),
             cli.verbose,
         );
@@ -113,7 +113,7 @@ fn main() {
         send_to_sketchybar(
             "trigger",
             "system_stats",
-            Some(commands.clone()),
+            Some(&commands),
             cli.bar.as_ref(),
             cli.verbose,
         );
