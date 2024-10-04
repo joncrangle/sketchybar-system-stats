@@ -1,5 +1,6 @@
 mod cli;
 mod sketchybar;
+mod sketchybar2;
 mod stats;
 
 use sketchybar::send_to_sketchybar;
