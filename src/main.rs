@@ -1,13 +1,13 @@
 mod cli;
-mod sketchybar;
 mod sketchybar2;
 mod stats;
 
-use sketchybar::send_to_sketchybar;
+use anyhow::Result;
+use sketchybar2::send_to_sketchybar;
 use stats::{get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats};
 use sysinfo::{Disks, Networks, System};
 
-async fn get_stats(cli: &cli::Cli) -> Result<(), Box<dyn std::error::Error>> {
+async fn get_stats(cli: &cli::Cli) -> Result<()> {
     let refresh_kind = stats::build_refresh_kind();
     let mut system = System::new_with_specifics(refresh_kind);
     let mut disks = Disks::new_with_refreshed_list();
@@ -42,7 +42,7 @@ async fn get_stats(cli: &cli::Cli) -> Result<(), Box<dyn std::error::Error>> {
             Some(get_system_stats(&system_flags).join("")),
             cli.bar.as_ref(),
             cli.verbose,
-        );
+        )?;
     };
 
     loop {
@@ -93,12 +93,13 @@ async fn get_stats(cli: &cli::Cli) -> Result<(), Box<dyn std::error::Error>> {
             Some(commands.join("")),
             cli.bar.as_ref(),
             cli.verbose,
-        );
+        )?;
     }
 }
 
+#[cfg(target_os = "macos")]
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let cli = cli::parse_args();
 
     if cli.verbose {
@@ -112,10 +113,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None,
         cli.bar.as_ref(),
         cli.verbose,
-    );
+    )?;
 
-    if let Err(e) = get_stats(&cli).await {
-        eprintln!("Error occurred: {}", e);
-    }
+    get_stats(&cli).await?;
+
     Ok(())
 }

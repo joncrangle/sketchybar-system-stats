@@ -6,6 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
+anyhow = "1.0.89"
 clap = { version = "4.5.19", features = ["derive"] }
 mach2 = "0.4.2"
 sketchybar-rs = "0.2.0"
