@@ -5,6 +5,6 @@ description = "A simple system stats event provider for Sketchybar."
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.18", features = ["derive"] }
+clap = { version = "4.5.19", features = ["derive"] }
 sketchybar-rs = "0.2.0"
 sysinfo = { version = "0.31.4", default-features = false, features = ["component", "disk", "network", "system"] }
