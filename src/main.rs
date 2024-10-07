@@ -1,9 +1,9 @@
 mod cli;
-mod sketchybar2;
+mod sketchybar;
 mod stats;
 
 use anyhow::Result;
-use sketchybar2::send_to_sketchybar;
+use sketchybar::send_to_sketchybar;
 use stats::{get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats};
 use sysinfo::{Disks, Networks, System};
 
@@ -42,7 +42,7 @@ async fn get_stats(cli: &cli::Cli) -> Result<()> {
             Some(get_system_stats(&system_flags).join("")),
             cli.bar.as_ref(),
             cli.verbose,
-        )?;
+        );
     };
 
     loop {
@@ -93,7 +93,7 @@ async fn get_stats(cli: &cli::Cli) -> Result<()> {
             Some(commands.join("")),
             cli.bar.as_ref(),
             cli.verbose,
-        )?;
+        );
     }
 }
 
@@ -113,7 +113,7 @@ async fn main() -> Result<()> {
         None,
         cli.bar.as_ref(),
         cli.verbose,
-    )?;
+    );
 
     get_stats(&cli).await?;
 

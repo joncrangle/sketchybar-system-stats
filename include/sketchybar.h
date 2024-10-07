@@ -7,11 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef char *env;
-
-#define MACH_HANDLER(name) void name(env env)
-typedef MACH_HANDLER(mach_handler);
-
 struct mach_message {
   mach_msg_header_t header;
   mach_msg_size_t msgh_descriptor_count;
@@ -23,38 +18,13 @@ struct mach_buffer {
   mach_msg_trailer_t trailer;
 };
 
-struct mach_server {
-  bool is_running;
-  mach_port_name_t task;
-  mach_port_t port;
-  mach_port_t bs_port;
-
-  pthread_t thread;
-  mach_handler *handler;
-};
-
 void deallocate_mach_port(mach_port_t port) {
   if (port != MACH_PORT_NULL) {
     mach_port_deallocate(mach_task_self(), port);
   }
 }
 
-static struct mach_server g_mach_server;
 static mach_port_t g_mach_port = 0;
-
-char *env_get_value_for_key(env env, char *key) {
-  uint32_t caret = 0;
-  for (;;) {
-    if (!env[caret])
-      break;
-    if (strcmp(&env[caret], key) == 0)
-      return &env[caret + strlen(&env[caret]) + 1];
-
-    caret +=
-        strlen(&env[caret]) + strlen(&env[caret + strlen(&env[caret]) + 1]) + 2;
-  }
-  return (char *)"";
-}
 
 mach_port_t mach_get_bs_port(char *bar_name) {
   mach_port_name_t task = mach_task_self();
@@ -96,13 +66,8 @@ void mach_receive_message(mach_port_t port, struct mach_buffer *buffer,
   }
 }
 
-void debug_log(const char *func, const char *message) {
-  fprintf(stderr, "DEBUG [%s]: %s\n", func, message);
-}
-
 char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
   if (!message || !port) {
-    debug_log(__func__, "Null message or port");
     return NULL;
   }
 
@@ -158,11 +123,7 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
     if (result) {
       memcpy(result, buffer.message.descriptor.address, result_len);
       result[result_len] = '\0';
-    } else {
-      debug_log(__func__, "Failed to allocate memory for result");
     }
-  } else {
-    debug_log(__func__, "No descriptor address");
   }
 
   mach_msg_destroy(&buffer.message.header);
@@ -171,58 +132,14 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
   return result;
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-bool mach_server_begin(struct mach_server *mach_server, mach_handler handler,
-                       char *bootstrap_name) {
-  mach_server->task = mach_task_self();
-
-  if (mach_port_allocate(mach_server->task, MACH_PORT_RIGHT_RECEIVE,
-                         &mach_server->port) != KERN_SUCCESS) {
-    return false;
-  }
-
-  if (mach_port_insert_right(mach_server->task, mach_server->port,
-                             mach_server->port,
-                             MACH_MSG_TYPE_MAKE_SEND) != KERN_SUCCESS) {
-    return false;
-  }
-
-  if (task_get_special_port(mach_server->task, TASK_BOOTSTRAP_PORT,
-                            &mach_server->bs_port) != KERN_SUCCESS) {
-    return false;
-  }
-
-  if (bootstrap_register(mach_server->bs_port, bootstrap_name,
-                         mach_server->port) != KERN_SUCCESS) {
-    return false;
-  }
-
-  mach_server->handler = handler;
-  mach_server->is_running = true;
-  struct mach_buffer buffer;
-  while (mach_server->is_running) {
-    mach_receive_message(mach_server->port, &buffer, false);
-    mach_server->handler((env)buffer.message.descriptor.address);
-    mach_msg_destroy(&buffer.message.header);
-  }
-
-  deallocate_mach_port(mach_server->port);
-  deallocate_mach_port(mach_server->bs_port);
-  return true;
-}
-#pragma clang diagnostic pop
-
 char *sketchybar(const char *message, const char *bar_name) {
   if (!message || !bar_name) {
-    debug_log(__func__, "Null message or bar_name");
     return strdup("");
   }
 
   uint32_t message_length = strlen(message) + 1;
   char *formatted_message = (char *)malloc(message_length + 1);
   if (!formatted_message) {
-    debug_log(__func__, "Failed to allocate memory for formatted_message");
     return strdup("");
   }
 
@@ -256,8 +173,6 @@ char *sketchybar(const char *message, const char *bar_name) {
   char *response = NULL;
   if (g_mach_port) {
     response = mach_send_message(g_mach_port, formatted_message, caret + 1);
-  } else {
-    debug_log(__func__, "Invalid mach_port");
   }
 
   free(formatted_message);
@@ -267,18 +182,6 @@ char *sketchybar(const char *message, const char *bar_name) {
   } else {
     return strdup("");
   }
-}
-
-void cleanup_global_mach_port() {
-  if (g_mach_port != MACH_PORT_NULL) {
-    deallocate_mach_port(g_mach_port);
-    g_mach_port = MACH_PORT_NULL;
-  }
-}
-
-void event_server_begin(mach_handler event_handler, char *bootstrap_name) {
-  mach_server_begin(&g_mach_server, event_handler, bootstrap_name);
-  cleanup_global_mach_port();
 }
 
 void free_sketchybar_response(char *response) { free(response); }
