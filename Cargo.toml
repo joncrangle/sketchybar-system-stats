@@ -7,4 +7,4 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.18", features = ["derive"] }
 sketchybar-rs = "0.2.0"
-sysinfo = { version = "0.31.4", default-features = false, features = ["component", "disk", "network", "system"] }
+sysinfo = { version = "0.32.0", default-features = false, features = ["component", "disk", "network", "system"] }
