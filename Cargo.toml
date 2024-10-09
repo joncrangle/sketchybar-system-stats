@@ -8,13 +8,10 @@ build = "build.rs"
 [dependencies]
 anyhow = "1.0.89"
 clap = { version = "4.5.19", features = ["derive"] }
-mach2 = "0.4.2"
+mach-sys = "0.5.4"
 sketchybar-rs = "0.2.0"
 sysinfo = { version = "0.32.0", default-features = false, features = ["component", "disk", "network", "system"] }
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 cc = "1.1.24"
-
-[profile.release]
-debug = true
