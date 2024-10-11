@@ -71,10 +71,6 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
     return NULL;
   }
 
-  if (!message || !port) {
-    return NULL;
-  }
-
   mach_port_t response_port;
   mach_port_name_t task = mach_task_self();
   if (mach_port_allocate(task, MACH_PORT_RIGHT_RECEIVE, &response_port) !=
