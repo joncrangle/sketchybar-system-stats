@@ -1,6 +1,6 @@
 [package]
 name = "stats_provider"
-version = "0.5.5"
+version = "0.6.0"
 description = "A simple system stats event provider for Sketchybar."
 edition = "2021"
 build = "build.rs"
@@ -8,8 +8,6 @@ build = "build.rs"
 [dependencies]
 anyhow = "1.0.89"
 clap = { version = "4.5.19", features = ["derive"] }
-mach-sys = "0.5.4"
-sketchybar-rs = "0.2.0"
 sysinfo = { version = "0.32.0", default-features = false, features = ["component", "disk", "network", "system"] }
 tokio = { version = "1", features = ["full"] }
 
