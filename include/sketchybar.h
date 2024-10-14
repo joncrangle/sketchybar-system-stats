@@ -24,7 +24,8 @@ void deallocate_mach_port(mach_port_t port) {
   }
 }
 
-static mach_port_t g_mach_port = 0;
+static mach_port_t g_mach_port = MACH_PORT_NULL;
+static pthread_mutex_t g_port_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 mach_port_t mach_get_bs_port(char *bar_name) {
   mach_port_name_t task = mach_task_self();
@@ -44,7 +45,6 @@ mach_port_t mach_get_bs_port(char *bar_name) {
     return 0;
   }
 
-  deallocate_mach_port(bs_port);
   return port;
 }
 
@@ -105,7 +105,6 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
                MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
 
   if (send_result != MACH_MSG_SUCCESS) {
-    mach_port_deallocate(task, response_port);
     return NULL;
   }
 
@@ -123,7 +122,8 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
   }
 
   mach_msg_destroy(&buffer.message.header);
-  mach_port_deallocate(task, response_port);
+
+  deallocate_mach_port(response_port);
 
   return result;
 }
@@ -162,14 +162,16 @@ char *sketchybar(const char *message, const char *bar_name) {
 
   formatted_message[caret] = '\0';
 
-  if (!g_mach_port) {
+  pthread_mutex_lock(&g_port_mutex);
+  if (g_mach_port == MACH_PORT_NULL) {
     g_mach_port = mach_get_bs_port((char *)bar_name);
   }
 
   char *response = NULL;
-  if (g_mach_port) {
+  if (g_mach_port != MACH_PORT_NULL) {
     response = mach_send_message(g_mach_port, formatted_message, caret + 1);
   }
+  pthread_mutex_unlock(&g_port_mutex);
 
   free(formatted_message);
 
@@ -181,3 +183,12 @@ char *sketchybar(const char *message, const char *bar_name) {
 }
 
 void free_sketchybar_response(char *response) { free(response); }
+
+void cleanup_sketchybar() {
+  pthread_mutex_lock(&g_port_mutex);
+  if (g_mach_port != MACH_PORT_NULL) {
+    deallocate_mach_port(g_mach_port);
+    g_mach_port = MACH_PORT_NULL;
+  }
+  pthread_mutex_unlock(&g_port_mutex);
+}

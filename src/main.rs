@@ -2,12 +2,12 @@ mod cli;
 mod sketchybar;
 mod stats;
 
-use anyhow::Result;
-use sketchybar::send_to_sketchybar;
+use anyhow::{Context, Result};
+use sketchybar::Sketchybar;
 use stats::{get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats};
 use sysinfo::{Disks, Networks, System};
 
-async fn get_stats(cli: &cli::Cli) -> Result<()> {
+async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let refresh_kind = stats::build_refresh_kind();
     let mut system = System::new_with_specifics(refresh_kind);
     let mut disks = Disks::new_with_refreshed_list();
@@ -36,13 +36,12 @@ async fn get_stats(cli: &cli::Cli) -> Result<()> {
             None => cli::all_system_flags(),
         };
         include_uptime = system_flags.contains(&"uptime");
-        send_to_sketchybar(
+        sketchybar.send_message(
             "trigger",
             "system_stats",
-            Some(get_system_stats(&system_flags).join("")),
-            cli.bar.as_ref(),
+            Some(&get_system_stats(&system_flags).join("")),
             cli.verbose,
-        );
+        )?;
     };
 
     loop {
@@ -87,13 +86,12 @@ async fn get_stats(cli: &cli::Cli) -> Result<()> {
         if cli.verbose {
             println!("Current message: {}", commands.join(""));
         }
-        send_to_sketchybar(
+        sketchybar.send_message(
             "trigger",
             "system_stats",
-            Some(commands.join("")),
-            cli.bar.as_ref(),
+            Some(&commands.join("")),
             cli.verbose,
-        );
+        )?;
     }
 }
 
@@ -106,16 +104,12 @@ async fn main() -> Result<()> {
         println!("SketchyBar Stats Provider is running.");
         println!("Stats Provider CLI: {:?}", cli);
     }
+    let sketchybar =
+        Sketchybar::new(cli.bar.as_deref()).context("Failed to create Sketchybar instance")?;
 
-    send_to_sketchybar(
-        "add event",
-        "system_stats",
-        None,
-        cli.bar.as_ref(),
-        cli.verbose,
-    );
+    sketchybar.send_message("add event", "system_stats", None, cli.verbose)?;
 
-    get_stats(&cli).await?;
+    get_stats(&cli, &sketchybar).await?;
 
     Ok(())
 }
