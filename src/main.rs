@@ -36,12 +36,14 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
             None => cli::all_system_flags(),
         };
         include_uptime = system_flags.contains(&"uptime");
-        sketchybar.send_message(
-            "trigger",
-            "system_stats",
-            Some(&get_system_stats(&system_flags).join("")),
-            cli.verbose,
-        )?;
+        sketchybar
+            .send_message(
+                "trigger",
+                "system_stats",
+                Some(&get_system_stats(&system_flags).join("")),
+                cli.verbose,
+            )
+            .await?;
     };
 
     loop {
@@ -86,12 +88,14 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
         if cli.verbose {
             println!("Current message: {}", commands.join(""));
         }
-        sketchybar.send_message(
-            "trigger",
-            "system_stats",
-            Some(&commands.join("")),
-            cli.verbose,
-        )?;
+        sketchybar
+            .send_message(
+                "trigger",
+                "system_stats",
+                Some(&commands.join("")),
+                cli.verbose,
+            )
+            .await?;
     }
 }
 
@@ -107,7 +111,9 @@ async fn main() -> Result<()> {
     let sketchybar =
         Sketchybar::new(cli.bar.as_deref()).context("Failed to create Sketchybar instance")?;
 
-    sketchybar.send_message("add event", "system_stats", None, cli.verbose)?;
+    sketchybar
+        .send_message("add event", "system_stats", None, cli.verbose)
+        .await?;
 
     get_stats(&cli, &sketchybar).await?;
 

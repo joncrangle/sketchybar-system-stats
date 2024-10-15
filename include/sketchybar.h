@@ -18,12 +18,6 @@ struct mach_buffer {
   mach_msg_trailer_t trailer;
 };
 
-void deallocate_mach_port(mach_port_t port) {
-  if (port != MACH_PORT_NULL) {
-    mach_port_deallocate(mach_task_self(), port);
-  }
-}
-
 static mach_port_t g_mach_port = MACH_PORT_NULL;
 static pthread_mutex_t g_port_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -33,19 +27,17 @@ mach_port_t mach_get_bs_port(char *bar_name) {
   mach_port_t bs_port;
   if (task_get_special_port(task, TASK_BOOTSTRAP_PORT, &bs_port) !=
       KERN_SUCCESS) {
-    return 0;
+    return MACH_PORT_NULL;
   }
 
   char service_name[256]; // Assuming the service name will not exceed 255 chars
   snprintf(service_name, sizeof(service_name), "git.felix.%s", bar_name);
 
   mach_port_t port;
-  if (bootstrap_look_up(bs_port, service_name, &port) != KERN_SUCCESS) {
-    deallocate_mach_port(bs_port);
-    return 0;
-  }
+  kern_return_t result = bootstrap_look_up(bs_port, service_name, &port);
+  mach_port_deallocate(task, bs_port);
 
-  return port;
+  return (result == KERN_SUCCESS) ? port : MACH_PORT_NULL;
 }
 
 void mach_receive_message(mach_port_t port, struct mach_buffer *buffer,
@@ -105,6 +97,8 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
                MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
 
   if (send_result != MACH_MSG_SUCCESS) {
+    mach_port_mod_refs(task, response_port, MACH_PORT_RIGHT_RECEIVE, -1);
+    mach_port_deallocate(task, response_port);
     return NULL;
   }
 
@@ -122,8 +116,8 @@ char *mach_send_message(mach_port_t port, const char *message, uint32_t len) {
   }
 
   mach_msg_destroy(&buffer.message.header);
-
-  deallocate_mach_port(response_port);
+  mach_port_mod_refs(task, response_port, MACH_PORT_RIGHT_RECEIVE, -1);
+  mach_port_deallocate(task, response_port);
 
   return result;
 }
@@ -167,19 +161,23 @@ char *sketchybar(const char *message, const char *bar_name) {
     g_mach_port = mach_get_bs_port((char *)bar_name);
   }
 
-  char *response = NULL;
-  if (g_mach_port != MACH_PORT_NULL) {
-    response = mach_send_message(g_mach_port, formatted_message, caret + 1);
-  }
+  char *response = mach_send_message(g_mach_port, formatted_message, caret + 1);
   pthread_mutex_unlock(&g_port_mutex);
 
   free(formatted_message);
 
-  if (response) {
-    return response;
-  } else {
-    return strdup("");
+  return response ? response : strdup("");
+}
+
+bool refresh_sketchybar_port(const char *bar_name) {
+  pthread_mutex_lock(&g_port_mutex);
+  if (g_mach_port != MACH_PORT_NULL) {
+    mach_port_deallocate(mach_task_self(), g_mach_port);
   }
+  g_mach_port = mach_get_bs_port((char *)bar_name);
+  bool success = (g_mach_port != MACH_PORT_NULL);
+  pthread_mutex_unlock(&g_port_mutex);
+  return success;
 }
 
 void free_sketchybar_response(char *response) { free(response); }
@@ -187,7 +185,7 @@ void free_sketchybar_response(char *response) { free(response); }
 void cleanup_sketchybar() {
   pthread_mutex_lock(&g_port_mutex);
   if (g_mach_port != MACH_PORT_NULL) {
-    deallocate_mach_port(g_mach_port);
+    mach_port_deallocate(mach_task_self(), g_mach_port);
     g_mach_port = MACH_PORT_NULL;
   }
   pthread_mutex_unlock(&g_port_mutex);
