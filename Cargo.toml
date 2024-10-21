@@ -6,7 +6,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.89"
+anyhow = "1.0.90"
 clap = { version = "4.5.20", features = ["derive"] }
 sysinfo = { version = "0.32.0", default-features = false, features = ["component", "disk", "network", "system"] }
 tokio = { version = "1", features = ["full"] }
