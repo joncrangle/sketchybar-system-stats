@@ -50,10 +50,10 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
         let mut commands: Vec<String> = Vec::new();
         tokio::time::sleep(tokio::time::Duration::from_secs(cli.interval.into())).await;
         system.refresh_specifics(refresh_kind);
+        disks.refresh();
+        networks.refresh();
 
         if cli.all {
-            disks.refresh();
-            networks.refresh();
             commands.push(get_cpu_stats(&system, &cli::all_cpu_flags()).join(""));
             commands.push(get_disk_stats(&disks, &cli::all_disk_flags()).join(""));
             commands.push(get_memory_stats(&system, &cli::all_memory_flags()).join(""));
