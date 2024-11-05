@@ -65,7 +65,6 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
             }
 
             if let Some(disk_flags) = &disk_flags {
-                disks.refresh();
                 commands.push(get_disk_stats(&disks, disk_flags).join(""));
             }
 
@@ -74,7 +73,6 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
             }
 
             if let Some(network_flags) = &network_flags {
-                networks.refresh();
                 commands
                     .push(get_network_stats(&networks, Some(network_flags), cli.interval).join(""));
             }
