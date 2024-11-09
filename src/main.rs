@@ -101,9 +101,9 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = cli::parse_args();
+    println!("SketchyBar Stats Provider is running.");
 
     if cli.verbose {
-        println!("SketchyBar Stats Provider is running.");
         println!("Stats Provider CLI: {:?}", cli);
     }
     let sketchybar =
