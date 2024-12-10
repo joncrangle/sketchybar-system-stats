@@ -29,8 +29,10 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
                         .iter()
                         .any(|&label| component.label().contains(label))
                     {
-                        total_temp += component.temperature();
-                        count += 1;
+                        if let Some(temperature) = component.temperature() {
+                            total_temp += temperature;
+                            count += 1;
+                        }
                     }
                 }
 
