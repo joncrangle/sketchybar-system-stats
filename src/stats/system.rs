@@ -5,7 +5,7 @@ pub fn get_system_stats(flags: &[&str]) -> Vec<String> {
     for &flag in flags {
         match flag {
             "arch" => {
-                result.push(format!("ARCH=\"{}\" ", System::cpu_arch().unwrap()));
+                result.push(format!("ARCH=\"{}\" ", System::cpu_arch()));
             }
             "distro" => {
                 result.push(format!("DISTRO=\"{}\" ", System::distribution_id()));

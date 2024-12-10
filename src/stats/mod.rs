@@ -13,7 +13,7 @@ pub use network::get_network_stats;
 pub use system::get_system_stats;
 
 pub fn build_refresh_kind() -> RefreshKind {
-    RefreshKind::new()
-        .with_cpu(CpuRefreshKind::new().with_cpu_usage().with_frequency())
-        .with_memory(MemoryRefreshKind::new().with_ram().with_swap())
+    RefreshKind::nothing()
+        .with_cpu(CpuRefreshKind::nothing().with_cpu_usage().with_frequency())
+        .with_memory(MemoryRefreshKind::nothing().with_ram().with_swap())
 }
