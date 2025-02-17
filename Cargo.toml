@@ -7,7 +7,7 @@ build = "build.rs"
 
 [dependencies]
 anyhow = "1.0.95"
-clap = { version = "4.5.28", features = ["derive"] }
+clap = { version = "4.5.29", features = ["derive"] }
 sysinfo = { version = "0.33.1", default-features = false, features = ["component", "disk", "network", "system"] }
 tokio = { version = "1", features = ["full"] }
 
