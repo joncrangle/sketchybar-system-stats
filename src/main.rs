@@ -14,6 +14,9 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let mut networks = Networks::new_with_refreshed_list();
     let mut include_uptime = false;
 
+    let mut network_refresh_counter = 0;
+    let network_refresh_rate = 5;
+
     let cpu_flags = cli
         .cpu
         .as_ref()
@@ -51,7 +54,14 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(cli.interval.into())).await;
         system.refresh_specifics(refresh_kind);
         disks.refresh(true);
-        networks.refresh(true);
+
+        network_refresh_counter += 1;
+        if network_refresh_counter >= network_refresh_rate {
+            networks = Networks::new_with_refreshed_list();
+            network_refresh_counter = 0;
+        } else {
+            networks.refresh(true);
+        }
 
         if cli.all {
             commands.push(get_cpu_stats(&system, &cli::all_cpu_flags()).join(""));
