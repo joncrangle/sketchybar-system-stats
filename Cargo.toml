@@ -12,4 +12,4 @@ sysinfo = { version = "0.35.2", default-features = false, features = ["component
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
-cc = "1.2.25"
+cc = "1.2.26"
