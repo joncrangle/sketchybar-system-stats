@@ -8,7 +8,7 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
     for &flag in flags {
         match flag {
             "count" => {
-                result.push(format!("CPU_COUNT=\"{}\" ", cpu_count));
+                result.push(format!("CPU_COUNT=\"{cpu_count}\" "));
             }
             "frequency" => {
                 let total_frequency: u64 = s.cpus().iter().map(|cpu| cpu.frequency()).sum();
@@ -43,12 +43,12 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
                 };
 
                 let formatted_temp = if average_temp != -1.0 {
-                    format!("{:.1}", average_temp)
+                    format!("{average_temp:.1}")
                 } else {
                     "N/A".to_string()
                 };
 
-                result.push(format!("CPU_TEMP=\"{}°C\" ", formatted_temp));
+                result.push(format!("CPU_TEMP=\"{formatted_temp}°C\" "));
             }
             "usage" => {
                 result.push(format!(

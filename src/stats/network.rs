@@ -10,8 +10,8 @@ pub fn get_network_stats(
     let interfaces_to_check: Vec<&str> = match interfaces {
         Some(ifaces) => ifaces.iter().map(String::as_str).collect(),
         None => n
-            .iter()
-            .map(|(interface_name, _)| interface_name.as_str())
+            .keys()
+            .map(|interface_name| interface_name.as_str())
             .collect(),
     };
 

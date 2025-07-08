@@ -41,7 +41,7 @@ pub fn get_disk_stats(disks: &Disks, flags: &[&str]) -> Vec<String> {
                 ));
             }
             "usage" => {
-                result.push(format!("DISK_USAGE=\"{}%\" ", disk_usage_percentage));
+                result.push(format!("DISK_USAGE=\"{disk_usage_percentage}%\" "));
             }
             _ => {}
         }

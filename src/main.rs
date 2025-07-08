@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
     println!("SketchyBar Stats Provider is running.");
 
     if cli.verbose {
-        println!("Stats Provider CLI: {:?}", cli);
+        println!("Stats Provider CLI: {cli:?}");
     }
     let sketchybar =
         Sketchybar::new(cli.bar.as_deref()).context("Failed to create Sketchybar instance")?;

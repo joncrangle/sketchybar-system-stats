@@ -59,7 +59,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str]) -> Vec<String> {
                 ));
             }
             "ram_usage" => {
-                result.push(format!("RAM_USAGE=\"{}%\" ", ram_usage_percentage));
+                result.push(format!("RAM_USAGE=\"{ram_usage_percentage}%\" "));
             }
             "swp_free" => {
                 result.push(format!(
@@ -80,7 +80,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str]) -> Vec<String> {
                 ));
             }
             "swp_usage" => {
-                result.push(format!("SWP_USAGE=\"{}%\" ", swp_usage_percentage));
+                result.push(format!("SWP_USAGE=\"{swp_usage_percentage}%\" "));
             }
             _ => {}
         }
