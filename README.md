@@ -120,6 +120,7 @@ $CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --
 Example: use `stats_provider` to add an item `disk_usage`, subscribe to the `system_stats` event and update the `disk_usage` item.
 
 ```bash
+# Ensure that `stats_provider` is running by invoking it earlier in your `sketchybarrc` file
 sketchybar --add item disk_usage right \
            --set disk_usage script="sketchybar --set disk_usage label=\$DISK_USAGE" \
            --subscribe disk_usage system_stats
@@ -129,7 +130,7 @@ sketchybar --add item disk_usage right \
 
 ```lua
 -- Update with path to stats_provider
-sbar.exec('killall stats_provider >/dev/null; $CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --disk usage --memory usage')
+sbar.exec('killall stats_provider >/dev/null; $CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --disk usage --memory ram_usage')
 
 -- Subscribe and use the `DISK_USAGE` var
 local disk = sbar.add('item', 'disk', {
