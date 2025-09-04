@@ -53,7 +53,7 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
             "usage" => {
                 result.push(format!(
                     "CPU_USAGE=\"{:.0}%\" ",
-                    (s.global_cpu_usage() / cpu_count).round()
+                    s.global_cpu_usage().round()
                 ));
             }
             _ => {}
