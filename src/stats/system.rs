@@ -32,9 +32,6 @@ pub fn get_system_stats(flags: &[&str]) -> Vec<String> {
                     System::long_os_version().unwrap()
                 ));
             }
-            "uptime" => {
-                result.push(format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
-            }
             _ => {}
         }
     }

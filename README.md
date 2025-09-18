@@ -41,7 +41,8 @@ Options:
   -d, --disk <DISK>...        Get disk stats [possible values: count, free, total, usage, used]
   -m, --memory <MEMORY>...    Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
   -n, --network <NETWORK>...  Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
-  -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version, uptime]
+  -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
+  -u, --uptime <UPTIME>...    Get uptime stats [possible values: week, day, hour, min, sec]
   -i, --interval <INTERVAL>   Refresh interval in seconds [default: 5]
   -b, --bar <BAR>             Bar name (optional)
       --verbose               Enable verbose output
@@ -53,6 +54,28 @@ Example: trigger event with cpu, disk and ram usage percentages at a refresh int
 ```bash
 stats_provider --cpu usage --disk usage --memory ram_usage --interval 2
 ```
+
+### Uptime Usage
+
+The uptime system supports customizable time units. You can specify which units to display:
+
+```bash
+# Show all available units (week, day, hour, min, sec)
+stats_provider --uptime
+
+# Show specific units only
+stats_provider --uptime day min    # Shows "5d 42m"
+stats_provider --uptime week hour  # Shows "2w 5h"
+```
+
+Available uptime units:
+- `week` (w) - weeks
+- `day` (d) - days
+- `hour` (h) - hours
+- `min` (m) - minutes
+- `sec` (s) - seconds
+
+Units are automatically sorted from largest to smallest, with intelligent carry-over (e.g., excess hours carry into days).
 
 Add the `--verbose` flag to see more detailed output:
 
@@ -102,7 +125,7 @@ Environment variables that can be provided by the `system_stats` event
 | `SWP_USAGE`              | Swap usage %                              |
 | `SWP_USED`               | Used swap GB                              |
 | `SYSTEM_NAME`            | System name (i.e. Darwin)                 |
-| `UPTIME`                 | System uptime in minutes                  |
+| `UPTIME`                 | System uptime (customizable units)       |
 
 > [!NOTE]
 > System stats that are not expected to change between system restarts (e.g. `NAME`, `OS_VERSION`, etc.) are sent when the app binary starts, but are not refreshed.
