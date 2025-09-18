@@ -3,6 +3,7 @@ mod disk;
 mod memory;
 mod network;
 mod system;
+mod uptime;
 
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
 
@@ -11,6 +12,7 @@ pub use disk::get_disk_stats;
 pub use memory::get_memory_stats;
 pub use network::get_network_stats;
 pub use system::get_system_stats;
+pub use uptime::get_uptime_stats;
 
 pub fn build_refresh_kind() -> RefreshKind {
     RefreshKind::nothing()

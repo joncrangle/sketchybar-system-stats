@@ -21,6 +21,9 @@ pub struct Cli {
     #[arg(short = 's', long, num_args = 1.., value_parser = all_system_flags(), help = "Get system stats")]
     pub system: Option<Vec<String>>,
 
+    #[arg(short = 'u', long, num_args = 1.., value_parser = all_uptime_flags(), help = "Get uptime stats")]
+    pub uptime: Option<Vec<String>>,
+
     #[arg(
         short = 'i',
         long,
@@ -72,6 +75,9 @@ pub fn all_system_flags() -> Vec<&'static str> {
         "name",
         "os_version",
         "long_os_version",
-        "uptime",
     ]
+}
+
+pub fn all_uptime_flags() -> Vec<&'static str> {
+    vec!["week", "day", "hour", "min", "sec"]
 }
