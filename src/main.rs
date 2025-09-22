@@ -4,7 +4,10 @@ mod stats;
 
 use anyhow::{Context, Result};
 use sketchybar::Sketchybar;
-use stats::{get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats};
+use stats::{
+    get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats,
+    get_uptime_stats,
+};
 use sysinfo::{Disks, Networks, System};
 
 async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
@@ -12,7 +15,6 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let mut system = System::new_with_specifics(refresh_kind);
     let mut disks = Disks::new_with_refreshed_list();
     let mut networks = Networks::new_with_refreshed_list();
-    let mut include_uptime = false;
 
     let mut network_refresh_counter = 0;
     let network_refresh_rate = 5;
@@ -31,6 +33,11 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
         .map(|flags| flags.iter().map(String::as_str).collect::<Vec<&str>>());
     let network_flags = cli.network.as_ref().map(|flags| flags.to_vec());
 
+    let uptime_flags = cli
+        .uptime
+        .as_ref()
+        .map(|flags| flags.iter().map(String::as_str).collect::<Vec<&str>>());
+
     // Get system stats that do not change before the main loop
     if cli.all || cli.system.is_some() {
         system.refresh_specifics(refresh_kind);
@@ -38,7 +45,6 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
             Some(flags) => flags.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
             None => cli::all_system_flags(),
         };
-        include_uptime = system_flags.contains(&"uptime");
         sketchybar
             .send_message(
                 "trigger",
@@ -68,7 +74,7 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
             commands.push(get_disk_stats(&disks, &cli::all_disk_flags()).join(""));
             commands.push(get_memory_stats(&system, &cli::all_memory_flags()).join(""));
             commands.push(get_network_stats(&networks, None, cli.interval).join(""));
-            commands.push(format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
+            commands.push(get_uptime_stats(&cli::all_uptime_flags()));
         } else {
             if let Some(cpu_flags) = &cpu_flags {
                 commands.push(get_cpu_stats(&system, cpu_flags).join(""));
@@ -87,9 +93,8 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
                     .push(get_network_stats(&networks, Some(network_flags), cli.interval).join(""));
             }
 
-            // Get system stat that changes within the main loop
-            if include_uptime {
-                commands.push(format!("UPTIME=\"{} mins\" ", System::uptime() / 60));
+            if let Some(uptime_flags) = &uptime_flags {
+                commands.push(get_uptime_stats(uptime_flags));
             }
         }
 
