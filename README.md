@@ -36,23 +36,30 @@ A simple system stats event provider for Sketchybar.
 Usage: stats_provider [OPTIONS]
 
 Options:
-  -a, --all                   Get all stats
-  -c, --cpu <CPU>...          Get CPU stats [possible values: count, frequency, temperature, usage]
-  -d, --disk <DISK>...        Get disk stats [possible values: count, free, total, usage, used]
-  -m, --memory <MEMORY>...    Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
-  -n, --network <NETWORK>...  Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
-  -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
-  -u, --uptime <UPTIME>...    Get uptime stats [possible values: week, day, hour, min, sec]
-  -i, --interval <INTERVAL>   Refresh interval in seconds [default: 5]
-  -b, --bar <BAR>             Bar name (optional)
-      --verbose               Enable verbose output
-  -h, --help                  Print help
-  -V, --version               Print version
+  -a, --all                                        Get all stats
+  -c, --cpu <CPU>...                               Get CPU stats [possible values: count, frequency, temperature, usage]
+  -d, --disk <DISK>...                             Get disk stats [possible values: count, free, total, usage, used]
+  -m, --memory <MEMORY>...                         Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
+  -n, --network <NETWORK>...                       Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
+  -s, --system <SYSTEM>...                         Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
+  -u, --uptime <UPTIME>...                         Get uptime stats [possible values: week, day, hour, min, sec]
+  -i, --interval <INTERVAL>                        Refresh interval in seconds [default: 5]
+      --network-refresh-rate <NETWORK_REFRESH_RATE> Network refresh rate (how often to refresh network interface list, in stat intervals) [default: 5]
+  -b, --bar <BAR>                                  Bar name (optional)
+      --verbose                                    Enable verbose output
+  -h, --help                                       Print help
+  -V, --version                                    Print version
 ```
 
 Example: trigger event with cpu, disk and ram usage percentages at a refresh interval of 2 seconds:
 ```bash
 stats_provider --cpu usage --disk usage --memory ram_usage --interval 2
+```
+
+Example: network monitoring with optimized refresh rate:
+```bash
+# Monitor network with interface refresh every 8 stat intervals
+stats_provider --network en0 --interval 3 --network-refresh-rate 8
 ```
 
 ### Uptime Usage
@@ -76,6 +83,28 @@ Available uptime units:
 - `sec` (s) - seconds
 
 Units are automatically sorted from largest to smallest, with intelligent carry-over (e.g., excess hours carry into days).
+
+### Network Optimization
+
+The `--network-refresh-rate` parameter controls how frequently the network interface list is refreshed:
+
+```bash
+# Default: refresh network interfaces every 5 stat intervals
+stats_provider --network en0 --interval 2 --network-refresh-rate 5
+
+# More frequent refresh (every 2 intervals) for dynamic environments
+stats_provider --network en0 wlan0 --network-refresh-rate 2
+
+# Less frequent refresh (every 10 intervals) for stable setups to reduce overhead
+stats_provider --network en0 --network-refresh-rate 10
+```
+
+**Benefits:**
+- **Performance**: Reduces system calls by refreshing interface list less frequently
+- **Efficiency**: Network interfaces don't change rapidly, so frequent rescanning is unnecessary
+- **Customizable**: Adjust based on your network environment stability
+
+**Recommendation:** Use higher values (8-15) for stable network setups, lower values (2-5) for environments where interfaces frequently change.
 
 Add the `--verbose` flag to see more detailed output:
 
