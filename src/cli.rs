@@ -1,4 +1,13 @@
+use anyhow::{bail, Result};
 use clap::Parser;
+
+// Default values as constants
+pub const DEFAULT_INTERVAL: u32 = 5;
+pub const DEFAULT_NETWORK_REFRESH_RATE: u32 = 5;
+pub const MIN_INTERVAL: u32 = 1;
+pub const MAX_INTERVAL: u32 = 3600; // 1 hour max
+pub const MIN_NETWORK_REFRESH_RATE: u32 = 1;
+pub const MAX_NETWORK_REFRESH_RATE: u32 = 100;
 
 #[derive(Parser, Debug)]
 #[command(name = "stats_provider", version, about, long_about = None, arg_required_else_help = true)]
@@ -27,10 +36,17 @@ pub struct Cli {
     #[arg(
         short = 'i',
         long,
-        default_value_t = 5,
+        default_value_t = DEFAULT_INTERVAL,
         help = "Refresh interval in seconds"
     )]
     pub interval: u32,
+
+    #[arg(
+        long,
+        default_value_t = DEFAULT_NETWORK_REFRESH_RATE,
+        help = "Network refresh rate (how often to refresh network interface list, in stat intervals)"
+    )]
+    pub network_refresh_rate: u32,
 
     #[arg(short = 'b', long, help = "Bar name (optional)")]
     pub bar: Option<String>,
@@ -41,6 +57,44 @@ pub struct Cli {
 
 pub fn parse_args() -> Cli {
     Cli::parse()
+}
+
+pub fn validate_cli(cli: &Cli) -> Result<()> {
+    // Validate interval
+    if cli.interval < MIN_INTERVAL || cli.interval > MAX_INTERVAL {
+        bail!(
+            "Interval must be between {} and {} seconds, got {}",
+            MIN_INTERVAL,
+            MAX_INTERVAL,
+            cli.interval
+        );
+    }
+
+    // Validate network refresh rate
+    if cli.network_refresh_rate < MIN_NETWORK_REFRESH_RATE
+        || cli.network_refresh_rate > MAX_NETWORK_REFRESH_RATE
+    {
+        bail!(
+            "Network refresh rate must be between {} and {}, got {}",
+            MIN_NETWORK_REFRESH_RATE,
+            MAX_NETWORK_REFRESH_RATE,
+            cli.network_refresh_rate
+        );
+    }
+
+    // Validate that at least one stat type is requested if not using --all
+    if !cli.all
+        && cli.cpu.is_none()
+        && cli.disk.is_none()
+        && cli.memory.is_none()
+        && cli.network.is_none()
+        && cli.system.is_none()
+        && cli.uptime.is_none()
+    {
+        bail!("At least one stat type must be specified, or use --all");
+    }
+
+    Ok(())
 }
 
 pub fn all_cpu_flags() -> Vec<&'static str> {

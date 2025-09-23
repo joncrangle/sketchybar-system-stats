@@ -18,10 +18,13 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
                 ));
             }
             "temperature" => {
+                // Get CPU temperature by averaging readings from CPU-related components
+                // Different systems expose CPU temperature through various component labels
                 let components = Components::new_with_refreshed_list();
                 let mut total_temp: f32 = 0.0;
                 let mut count: u32 = 0;
 
+                // Common labels for CPU temperature sensors across different systems
                 let cpu_labels = ["CPU", "PMU", "SOC"];
 
                 for component in &components {
@@ -36,10 +39,11 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
                     }
                 }
 
+                // Calculate average temperature across all CPU sensors found
                 let average_temp = if count > 0 {
                     total_temp / count as f32
                 } else {
-                    -1.0
+                    -1.0 // Sentinel value indicating no temperature sensors found
                 };
 
                 let formatted_temp = if average_temp != -1.0 {
