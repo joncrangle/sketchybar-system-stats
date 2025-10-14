@@ -7,9 +7,9 @@ build = "build.rs"
 
 [dependencies]
 anyhow = "1.0.100"
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.5.49", features = ["derive"] }
 sysinfo = { version = "0.37.2", default-features = false, features = ["component", "disk", "network", "system"] }
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
-cc = "1.2.40"
+cc = "1.2.41"
