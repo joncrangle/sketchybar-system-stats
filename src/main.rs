@@ -195,27 +195,37 @@ async fn collect_stats_commands(
     }
 
     if cli.all {
-        commands.push(get_cpu_stats(context.system, &cli::all_cpu_flags()).join(""));
-        commands.push(get_disk_stats(context.disks, &cli::all_disk_flags()).join(""));
-        commands.push(get_memory_stats(context.system, &cli::all_memory_flags()).join(""));
-        commands.push(get_network_stats(context.networks, None, cli.interval).join(""));
+        commands.push(get_cpu_stats(context.system, &cli::all_cpu_flags(), cli.no_units).join(""));
+        commands.push(get_disk_stats(context.disks, &cli::all_disk_flags(), cli.no_units).join(""));
+        commands.push(
+            get_memory_stats(context.system, &cli::all_memory_flags(), cli.no_units).join(""),
+        );
+        commands
+            .push(get_network_stats(context.networks, None, cli.interval, cli.no_units).join(""));
         commands.push(get_uptime_stats(&cli::all_uptime_flags()));
     } else {
         if let Some(cpu_flag_refs) = config.flags.cpu_flag_refs() {
-            commands.push(get_cpu_stats(context.system, &cpu_flag_refs).join(""));
+            commands.push(get_cpu_stats(context.system, &cpu_flag_refs, cli.no_units).join(""));
         }
 
         if let Some(disk_flag_refs) = config.flags.disk_flag_refs() {
-            commands.push(get_disk_stats(context.disks, &disk_flag_refs).join(""));
+            commands.push(get_disk_stats(context.disks, &disk_flag_refs, cli.no_units).join(""));
         }
 
         if let Some(memory_flag_refs) = config.flags.memory_flag_refs() {
-            commands.push(get_memory_stats(context.system, &memory_flag_refs).join(""));
+            commands
+                .push(get_memory_stats(context.system, &memory_flag_refs, cli.no_units).join(""));
         }
 
         if let Some(network_flags) = &config.flags.network_flags {
             commands.push(
-                get_network_stats(context.networks, Some(network_flags), cli.interval).join(""),
+                get_network_stats(
+                    context.networks,
+                    Some(network_flags),
+                    cli.interval,
+                    cli.no_units,
+                )
+                .join(""),
             );
         }
 

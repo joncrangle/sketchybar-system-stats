@@ -47,6 +47,7 @@ Options:
       --network-refresh-rate <NETWORK_REFRESH_RATE> Network refresh rate (how often to refresh network interface list, in stat intervals) [default: 5]
   -b, --bar <BAR>                                  Bar name (optional)
       --verbose                                    Enable verbose output
+      --no-units                                   Output values without units
   -h, --help                                       Print help
   -V, --version                                    Print version
 ```
@@ -83,6 +84,22 @@ Available uptime units:
 - `sec` (s) - seconds
 
 Units are automatically sorted from largest to smallest, with intelligent carry-over (e.g., excess hours carry into days).
+
+### Output Format
+
+By default, all numeric values include their units (MHz, °C, %, GB, KB/s). You can output raw numeric values without units using the `--no-units` flag:
+
+```bash
+# With units (default)
+stats_provider --cpu usage --memory ram_usage
+# Output: CPU_USAGE="45%" RAM_USAGE="60%"
+
+# Without units
+stats_provider --cpu usage --memory ram_usage --no-units
+# Output: CPU_USAGE="45" RAM_USAGE="60"
+```
+
+This is useful when you want to process the values programmatically or apply custom formatting in your Sketchybar configuration.
 
 ### Network Optimization
 

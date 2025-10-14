@@ -53,6 +53,9 @@ pub struct Cli {
 
     #[arg(long, default_value_t = false, help = "Enable verbose output")]
     pub verbose: bool,
+
+    #[arg(long, default_value_t = false, help = "Output values without units")]
+    pub no_units: bool,
 }
 
 pub fn parse_args() -> Cli {

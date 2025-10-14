@@ -1,6 +1,6 @@
 use sysinfo::{Components, System};
 
-pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
+pub fn get_cpu_stats(s: &System, flags: &[&str], no_units: bool) -> Vec<String> {
     let cpu_count = s.cpus().len() as f32;
 
     let mut result = Vec::new();
@@ -12,19 +12,15 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
             }
             "frequency" => {
                 let total_frequency: u64 = s.cpus().iter().map(|cpu| cpu.frequency()).sum();
-                result.push(format!(
-                    "CPU_FREQUENCY=\"{}MHz\" ",
-                    total_frequency / cpu_count as u64
-                ));
+                let avg_freq = total_frequency / cpu_count as u64;
+                let unit = if no_units { "" } else { "MHz" };
+                result.push(format!("CPU_FREQUENCY=\"{avg_freq}{unit}\" "));
             }
             "temperature" => {
-                // Get CPU temperature by averaging readings from CPU-related components
-                // Different systems expose CPU temperature through various component labels
                 let components = Components::new_with_refreshed_list();
                 let mut total_temp: f32 = 0.0;
                 let mut count: u32 = 0;
 
-                // Common labels for CPU temperature sensors across different systems
                 let cpu_labels = ["CPU", "PMU", "SOC"];
 
                 for component in &components {
@@ -39,11 +35,10 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
                     }
                 }
 
-                // Calculate average temperature across all CPU sensors found
                 let average_temp = if count > 0 {
                     total_temp / count as f32
                 } else {
-                    -1.0 // Sentinel value indicating no temperature sensors found
+                    -1.0
                 };
 
                 let formatted_temp = if average_temp != -1.0 {
@@ -52,11 +47,13 @@ pub fn get_cpu_stats(s: &System, flags: &[&str]) -> Vec<String> {
                     "N/A".to_string()
                 };
 
-                result.push(format!("CPU_TEMP=\"{formatted_temp}°C\" "));
+                let unit = if no_units { "" } else { "°C" };
+                result.push(format!("CPU_TEMP=\"{formatted_temp}{unit}\" "));
             }
             "usage" => {
+                let unit = if no_units { "" } else { "%" };
                 result.push(format!(
-                    "CPU_USAGE=\"{:.0}%\" ",
+                    "CPU_USAGE=\"{:.0}{unit}\" ",
                     s.global_cpu_usage().round()
                 ));
             }

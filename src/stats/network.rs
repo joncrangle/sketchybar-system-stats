@@ -4,6 +4,7 @@ pub fn get_network_stats(
     n: &Networks,
     interfaces: Option<&[String]>,
     interval: u32,
+    no_units: bool,
 ) -> Vec<String> {
     let mut result = Vec::new();
 
@@ -15,10 +16,12 @@ pub fn get_network_stats(
             .collect(),
     };
 
+    let unit = if no_units { "" } else { "KB/s" };
+
     for interface in interfaces_to_check {
         if let Some(data) = n.get(interface) {
             result.push(format!(
-                "NETWORK_RX_{}=\"{}KB/s\" NETWORK_TX_{}=\"{}KB/s\" ",
+                "NETWORK_RX_{}=\"{}{unit}\" NETWORK_TX_{}=\"{}{unit}\" ",
                 interface,
                 (data.received() / 1024) / interval as u64,
                 interface,
