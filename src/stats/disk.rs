@@ -53,3 +53,40 @@ pub fn get_disk_stats(disks: &Disks, flags: &[&str], no_units: bool, buf: &mut S
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_disk_stats_with_units() {
+        let disks = Disks::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_disk_stats(&disks, &["count", "total"], false, &mut buf);
+
+        assert!(buf.contains("DISK_COUNT="));
+    }
+
+    #[test]
+    fn test_get_disk_stats_without_units() {
+        let disks = Disks::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_disk_stats(&disks, &["total"], true, &mut buf);
+
+        if !buf.is_empty() {
+            assert!(!buf.contains("GB"));
+        }
+    }
+
+    #[test]
+    fn test_get_disk_stats_empty_flags() {
+        let disks = Disks::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_disk_stats(&disks, &[], false, &mut buf);
+
+        assert_eq!(buf, "");
+    }
+}

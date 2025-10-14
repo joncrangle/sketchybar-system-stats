@@ -18,26 +18,20 @@ struct ProcessedFlags<'a> {
     uptime_flags: Option<&'a [String]>,
 }
 
+macro_rules! flag_refs_method {
+    ($method_name:ident, $field:ident) => {
+        fn $method_name(&self) -> Option<Vec<&str>> {
+            self.$field
+                .map(|flags| flags.iter().map(String::as_str).collect())
+        }
+    };
+}
+
 impl<'a> ProcessedFlags<'a> {
-    fn cpu_flag_refs(&self) -> Option<Vec<&str>> {
-        self.cpu_flags
-            .map(|flags| flags.iter().map(String::as_str).collect())
-    }
-
-    fn disk_flag_refs(&self) -> Option<Vec<&str>> {
-        self.disk_flags
-            .map(|flags| flags.iter().map(String::as_str).collect())
-    }
-
-    fn memory_flag_refs(&self) -> Option<Vec<&str>> {
-        self.memory_flags
-            .map(|flags| flags.iter().map(String::as_str).collect())
-    }
-
-    fn uptime_flag_refs(&self) -> Option<Vec<&str>> {
-        self.uptime_flags
-            .map(|flags| flags.iter().map(String::as_str).collect())
-    }
+    flag_refs_method!(cpu_flag_refs, cpu_flags);
+    flag_refs_method!(disk_flag_refs, disk_flags);
+    flag_refs_method!(memory_flag_refs, memory_flags);
+    flag_refs_method!(uptime_flag_refs, uptime_flags);
 }
 
 struct StatsContext<'a> {
@@ -69,18 +63,22 @@ fn validate_network_interfaces(
 ) -> Result<()> {
     let available_interfaces: Vec<String> = networks.keys().map(|name| name.to_string()).collect();
 
+    if available_interfaces.is_empty() {
+        anyhow::bail!("No network interfaces available on this system");
+    }
+
     for interface in requested_interfaces {
-        if !available_interfaces.contains(interface) && verbose {
-            eprintln!(
-                "Warning: Network interface '{}' not found. Available interfaces: {}",
+        if !available_interfaces.contains(interface) {
+            let msg = format!(
+                "Network interface '{}' not found. Available interfaces: {}",
                 interface,
                 available_interfaces.join(", ")
             );
+            if verbose {
+                eprintln!("Warning: {}", msg);
+            }
+            anyhow::bail!("{}", msg);
         }
-    }
-
-    if available_interfaces.is_empty() {
-        anyhow::bail!("No network interfaces available on this system");
     }
 
     Ok(())
@@ -271,4 +269,69 @@ async fn main() -> Result<()> {
     get_stats(&cli, &sketchybar).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_cli_flags() {
+        let cli = cli::Cli {
+            all: false,
+            cpu: Some(vec!["usage".to_string()]),
+            disk: None,
+            memory: Some(vec!["ram_total".to_string()]),
+            network: None,
+            system: None,
+            uptime: None,
+            interval: 5,
+            network_refresh_rate: 5,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+
+        let flags = process_cli_flags(&cli);
+
+        assert!(flags.cpu_flags.is_some());
+        assert!(flags.disk_flags.is_none());
+        assert!(flags.memory_flags.is_some());
+        assert!(flags.network_flags.is_none());
+    }
+
+    #[test]
+    fn test_processed_flags_cpu_flag_refs() {
+        let cpu_flags = vec!["usage".to_string(), "count".to_string()];
+        let flags = ProcessedFlags {
+            cpu_flags: Some(&cpu_flags),
+            disk_flags: None,
+            memory_flags: None,
+            network_flags: None,
+            uptime_flags: None,
+        };
+
+        let refs = flags.cpu_flag_refs();
+        assert!(refs.is_some());
+        let refs_vec = refs.unwrap();
+        assert_eq!(refs_vec.len(), 2);
+        assert_eq!(refs_vec[0], "usage");
+        assert_eq!(refs_vec[1], "count");
+    }
+
+    #[test]
+    fn test_processed_flags_returns_none_when_empty() {
+        let flags = ProcessedFlags {
+            cpu_flags: None,
+            disk_flags: None,
+            memory_flags: None,
+            network_flags: None,
+            uptime_flags: None,
+        };
+
+        assert!(flags.cpu_flag_refs().is_none());
+        assert!(flags.disk_flag_refs().is_none());
+        assert!(flags.memory_flag_refs().is_none());
+        assert!(flags.uptime_flag_refs().is_none());
+    }
 }

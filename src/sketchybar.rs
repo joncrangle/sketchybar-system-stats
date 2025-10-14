@@ -6,6 +6,8 @@ use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant};
 
 // Modified from sketchybar-rs (https://github.com/johnallen3d/sketchybar-rs)
+const PORT_REFRESH_INTERVAL_SECS: u64 = 300;
+
 #[link(name = "sketchybar", kind = "static")]
 extern "C" {
     fn sketchybar(message: *const c_char, bar_name: *const c_char) -> *mut c_char;
@@ -34,7 +36,7 @@ impl Sketchybar {
             bar_name: c_string,
             port_state: Mutex::new(PortState {
                 last_refresh: Instant::now(),
-                refresh_interval: Duration::from_secs(300), // 5 minutes
+                refresh_interval: Duration::from_secs(PORT_REFRESH_INTERVAL_SECS),
             }),
         })
     }

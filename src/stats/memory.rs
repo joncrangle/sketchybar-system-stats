@@ -99,3 +99,55 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_memory_stats_with_units() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let mut buf = String::new();
+
+        get_memory_stats(&s, &["ram_total", "ram_usage"], false, &mut buf);
+
+        assert!(buf.contains("RAM_TOTAL="));
+        assert!(buf.contains("RAM_USAGE="));
+        assert!(buf.contains("GB") || buf.contains("%"));
+    }
+
+    #[test]
+    fn test_get_memory_stats_without_units() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let mut buf = String::new();
+
+        get_memory_stats(&s, &["ram_usage"], true, &mut buf);
+
+        assert!(buf.contains("RAM_USAGE="));
+        assert!(!buf.contains("%"));
+    }
+
+    #[test]
+    fn test_get_memory_stats_swap() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let mut buf = String::new();
+
+        get_memory_stats(&s, &["swp_total", "swp_usage"], false, &mut buf);
+
+        assert!(buf.contains("SWP_TOTAL="));
+        assert!(buf.contains("SWP_USAGE="));
+    }
+
+    #[test]
+    fn test_get_memory_stats_empty_flags() {
+        let s = System::new_all();
+        let mut buf = String::new();
+
+        get_memory_stats(&s, &[], false, &mut buf);
+
+        assert_eq!(buf, "");
+    }
+}

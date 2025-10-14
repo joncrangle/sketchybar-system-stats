@@ -8,7 +8,11 @@ pub fn get_cpu_stats(
     no_units: bool,
     buf: &mut String,
 ) {
-    let cpu_count = s.cpus().len() as f32;
+    let cpu_count = s.cpus().len();
+
+    if cpu_count == 0 {
+        return;
+    }
 
     for &flag in flags {
         match flag {
@@ -62,5 +66,61 @@ pub fn get_cpu_stats(
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_cpu_stats_with_units() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let components = Components::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_cpu_stats(&s, &components, &["count", "usage"], false, &mut buf);
+
+        assert!(buf.contains("CPU_COUNT="));
+        assert!(buf.contains("CPU_USAGE="));
+        assert!(buf.contains("%"));
+    }
+
+    #[test]
+    fn test_get_cpu_stats_without_units() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let components = Components::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_cpu_stats(&s, &components, &["usage"], true, &mut buf);
+
+        assert!(buf.contains("CPU_USAGE="));
+        assert!(!buf.contains("%"));
+    }
+
+    #[test]
+    fn test_get_cpu_stats_empty_flags() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let components = Components::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_cpu_stats(&s, &components, &[], false, &mut buf);
+
+        assert_eq!(buf, "");
+    }
+
+    #[test]
+    fn test_get_cpu_stats_invalid_flag() {
+        let mut s = System::new_all();
+        s.refresh_all();
+        let components = Components::new_with_refreshed_list();
+        let mut buf = String::new();
+
+        get_cpu_stats(&s, &components, &["invalid_flag"], false, &mut buf);
+
+        assert_eq!(buf, "");
     }
 }

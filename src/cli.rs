@@ -138,3 +138,175 @@ pub fn all_system_flags() -> Vec<&'static str> {
 pub fn all_uptime_flags() -> Vec<&'static str> {
     vec!["week", "day", "hour", "min", "sec"]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_cli_with_all_flag() {
+        let cli = Cli {
+            all: true,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: DEFAULT_INTERVAL,
+            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_ok());
+    }
+
+    #[test]
+    fn test_validate_cli_with_cpu_flag() {
+        let cli = Cli {
+            all: false,
+            cpu: Some(vec!["usage".to_string()]),
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: DEFAULT_INTERVAL,
+            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_ok());
+    }
+
+    #[test]
+    fn test_validate_cli_no_flags() {
+        let cli = Cli {
+            all: false,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: DEFAULT_INTERVAL,
+            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_err());
+    }
+
+    #[test]
+    fn test_validate_cli_interval_too_low() {
+        let cli = Cli {
+            all: true,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: 0,
+            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_err());
+    }
+
+    #[test]
+    fn test_validate_cli_interval_too_high() {
+        let cli = Cli {
+            all: true,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: MAX_INTERVAL + 1,
+            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_err());
+    }
+
+    #[test]
+    fn test_validate_cli_network_refresh_rate_too_low() {
+        let cli = Cli {
+            all: true,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: DEFAULT_INTERVAL,
+            network_refresh_rate: 0,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_err());
+    }
+
+    #[test]
+    fn test_validate_cli_network_refresh_rate_too_high() {
+        let cli = Cli {
+            all: true,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: DEFAULT_INTERVAL,
+            network_refresh_rate: MAX_NETWORK_REFRESH_RATE + 1,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        assert!(validate_cli(&cli).is_err());
+    }
+
+    #[test]
+    fn test_all_cpu_flags_returns_correct_flags() {
+        let flags = all_cpu_flags();
+        assert_eq!(flags, vec!["count", "frequency", "temperature", "usage"]);
+    }
+
+    #[test]
+    fn test_all_disk_flags_returns_correct_flags() {
+        let flags = all_disk_flags();
+        assert_eq!(flags, vec!["count", "free", "total", "usage", "used"]);
+    }
+
+    #[test]
+    fn test_all_memory_flags_contains_ram_and_swap() {
+        let flags = all_memory_flags();
+        assert!(flags.contains(&"ram_available"));
+        assert!(flags.contains(&"swp_total"));
+        assert_eq!(flags.len(), 8);
+    }
+
+    #[test]
+    fn test_all_system_flags_returns_correct_flags() {
+        let flags = all_system_flags();
+        assert!(flags.contains(&"arch"));
+        assert!(flags.contains(&"distro"));
+        assert_eq!(flags.len(), 7);
+    }
+
+    #[test]
+    fn test_all_uptime_flags_returns_correct_flags() {
+        let flags = all_uptime_flags();
+        assert_eq!(flags, vec!["week", "day", "hour", "min", "sec"]);
+    }
+}

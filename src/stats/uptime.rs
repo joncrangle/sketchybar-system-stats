@@ -79,3 +79,42 @@ pub fn get_uptime_stats(flags: &[&str], buf: &mut String) {
 
     let _ = write!(buf, "\" ");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_uptime_stats_all_units() {
+        let mut buf = String::new();
+        get_uptime_stats(&["week", "day", "hour", "min", "sec"], &mut buf);
+
+        assert!(buf.starts_with("UPTIME=\""));
+        assert!(buf.ends_with("\" "));
+    }
+
+    #[test]
+    fn test_get_uptime_stats_single_unit() {
+        let mut buf = String::new();
+        get_uptime_stats(&["min"], &mut buf);
+
+        assert!(buf.contains("UPTIME=\""));
+        assert!(buf.contains("m"));
+    }
+
+    #[test]
+    fn test_get_uptime_stats_empty_flags() {
+        let mut buf = String::new();
+        get_uptime_stats(&[], &mut buf);
+
+        assert!(buf.contains("UPTIME=\""));
+    }
+
+    #[test]
+    fn test_get_uptime_stats_invalid_flag() {
+        let mut buf = String::new();
+        get_uptime_stats(&["invalid"], &mut buf);
+
+        assert_eq!(buf, "UPTIME=\"0s\" ");
+    }
+}

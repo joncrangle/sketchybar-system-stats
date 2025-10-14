@@ -8,6 +8,10 @@ pub fn get_network_stats(
     no_units: bool,
     buf: &mut String,
 ) {
+    if interval == 0 {
+        return;
+    }
+
     let interfaces_to_check: Vec<&str> = match interfaces {
         Some(ifaces) => ifaces.iter().map(String::as_str).collect(),
         None => n
