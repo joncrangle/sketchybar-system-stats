@@ -8,38 +8,34 @@ use stats::{
     get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats,
     get_uptime_stats,
 };
-use sysinfo::{Disks, Networks, System};
+use sysinfo::{Components, Disks, Networks, System};
 
-struct ProcessedFlags {
-    cpu_flags: Option<Vec<String>>,
-    disk_flags: Option<Vec<String>>,
-    memory_flags: Option<Vec<String>>,
-    network_flags: Option<Vec<String>>,
-    uptime_flags: Option<Vec<String>>,
+struct ProcessedFlags<'a> {
+    cpu_flags: Option<&'a [String]>,
+    disk_flags: Option<&'a [String]>,
+    memory_flags: Option<&'a [String]>,
+    network_flags: Option<&'a [String]>,
+    uptime_flags: Option<&'a [String]>,
 }
 
-impl ProcessedFlags {
+impl<'a> ProcessedFlags<'a> {
     fn cpu_flag_refs(&self) -> Option<Vec<&str>> {
         self.cpu_flags
-            .as_ref()
             .map(|flags| flags.iter().map(String::as_str).collect())
     }
 
     fn disk_flag_refs(&self) -> Option<Vec<&str>> {
         self.disk_flags
-            .as_ref()
             .map(|flags| flags.iter().map(String::as_str).collect())
     }
 
     fn memory_flag_refs(&self) -> Option<Vec<&str>> {
         self.memory_flags
-            .as_ref()
             .map(|flags| flags.iter().map(String::as_str).collect())
     }
 
     fn uptime_flag_refs(&self) -> Option<Vec<&str>> {
         self.uptime_flags
-            .as_ref()
             .map(|flags| flags.iter().map(String::as_str).collect())
     }
 }
@@ -48,20 +44,21 @@ struct StatsContext<'a> {
     system: &'a mut System,
     disks: &'a mut Disks,
     networks: &'a mut Networks,
+    components: &'a Components,
 }
 
-struct StatsConfig {
-    flags: ProcessedFlags,
+struct StatsConfig<'a> {
+    flags: ProcessedFlags<'a>,
     refresh_kind: sysinfo::RefreshKind,
 }
 
-fn process_cli_flags(cli: &cli::Cli) -> ProcessedFlags {
+fn process_cli_flags(cli: &cli::Cli) -> ProcessedFlags<'_> {
     ProcessedFlags {
-        cpu_flags: cli.cpu.clone(),
-        disk_flags: cli.disk.clone(),
-        memory_flags: cli.memory.clone(),
-        network_flags: cli.network.clone(),
-        uptime_flags: cli.uptime.clone(),
+        cpu_flags: cli.cpu.as_deref(),
+        disk_flags: cli.disk.as_deref(),
+        memory_flags: cli.memory.as_deref(),
+        network_flags: cli.network.as_deref(),
+        uptime_flags: cli.uptime.as_deref(),
     }
 }
 
@@ -82,7 +79,6 @@ fn validate_network_interfaces(
         }
     }
 
-    // Only fail if no interfaces are available at all
     if available_interfaces.is_empty() {
         anyhow::bail!("No network interfaces available on this system");
     }
@@ -95,6 +91,7 @@ async fn send_initial_system_stats(
     sketchybar: &Sketchybar,
     system: &mut System,
     refresh_kind: &sysinfo::RefreshKind,
+    buf: &mut String,
 ) -> Result<()> {
     if cli.all || cli.system.is_some() {
         system.refresh_specifics(*refresh_kind);
@@ -102,13 +99,10 @@ async fn send_initial_system_stats(
             Some(flags) => flags.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
             None => cli::all_system_flags(),
         };
+        buf.clear();
+        get_system_stats(&system_flags, buf);
         sketchybar
-            .send_message(
-                "trigger",
-                "system_stats",
-                Some(&get_system_stats(&system_flags).join("")),
-                cli.verbose,
-            )
+            .send_message("trigger", "system_stats", Some(buf), cli.verbose)
             .await?;
     }
 
@@ -120,14 +114,23 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let mut system = System::new_with_specifics(refresh_kind);
     let mut disks = Disks::new_with_refreshed_list();
     let mut networks = Networks::new_with_refreshed_list();
+    let components = Components::new_with_refreshed_list();
 
-    // Validate network interfaces exist if specified
     if let Some(network_flags) = &cli.network {
         validate_network_interfaces(&networks, network_flags, cli.verbose)?;
     }
 
     let flags = process_cli_flags(cli);
-    send_initial_system_stats(cli, sketchybar, &mut system, &refresh_kind).await?;
+    let mut message_buffer = String::with_capacity(512);
+
+    send_initial_system_stats(
+        cli,
+        sketchybar,
+        &mut system,
+        &refresh_kind,
+        &mut message_buffer,
+    )
+    .await?;
 
     let config = StatsConfig {
         flags,
@@ -138,54 +141,57 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
         system: &mut system,
         disks: &mut disks,
         networks: &mut networks,
+        components: &components,
     };
 
-    run_stats_loop(cli, sketchybar, &config, &mut context).await
+    run_stats_loop(cli, sketchybar, &config, &mut context, &mut message_buffer).await
 }
 
 async fn run_stats_loop(
     cli: &cli::Cli,
     sketchybar: &Sketchybar,
-    config: &StatsConfig,
+    config: &StatsConfig<'_>,
     context: &mut StatsContext<'_>,
+    message_buffer: &mut String,
 ) -> Result<()> {
     let mut network_refresh_tick = 0;
 
     loop {
-        let (commands, updated_tick) =
-            collect_stats_commands(cli, config, context, network_refresh_tick).await?;
-        network_refresh_tick = updated_tick;
+        tokio::select! {
+            result = collect_stats_commands(cli, config, context, network_refresh_tick, message_buffer) => {
+                network_refresh_tick = result?;
 
-        if cli.verbose {
-            println!("Current message: {}", commands.join(""));
+                if cli.verbose {
+                    println!("Current message: {}", message_buffer);
+                }
+                sketchybar
+                    .send_message("trigger", "system_stats", Some(message_buffer), cli.verbose)
+                    .await?;
+            }
+            _ = tokio::signal::ctrl_c() => {
+                if cli.verbose {
+                    println!("Received shutdown signal, cleaning up...");
+                }
+                println!("SketchyBar Stats Provider is shutting down.");
+                return Ok(());
+            }
         }
-        sketchybar
-            .send_message(
-                "trigger",
-                "system_stats",
-                Some(&commands.join("")),
-                cli.verbose,
-            )
-            .await?;
     }
 }
 
 async fn collect_stats_commands(
     cli: &cli::Cli,
-    config: &StatsConfig,
+    config: &StatsConfig<'_>,
     context: &mut StatsContext<'_>,
     network_refresh_tick: u32,
-) -> Result<(Vec<String>, u32)> {
-    let mut commands: Vec<String> = Vec::new();
+    buf: &mut String,
+) -> Result<u32> {
+    buf.clear();
 
     tokio::time::sleep(tokio::time::Duration::from_secs(cli.interval.into())).await;
     context.system.refresh_specifics(config.refresh_kind);
     context.disks.refresh(true);
 
-    // Refresh network interfaces less frequently than other stats to reduce overhead.
-    // Network interfaces don't change rapidly, so we only refresh the full interface
-    // list every N stat collection cycles (configurable via --network-refresh-rate).
-    // In between full refreshes, we just update existing interface data.
     let mut updated_tick = network_refresh_tick + 1;
     if updated_tick >= cli.network_refresh_rate {
         *context.networks = Networks::new_with_refreshed_list();
@@ -195,46 +201,52 @@ async fn collect_stats_commands(
     }
 
     if cli.all {
-        commands.push(get_cpu_stats(context.system, &cli::all_cpu_flags(), cli.no_units).join(""));
-        commands.push(get_disk_stats(context.disks, &cli::all_disk_flags(), cli.no_units).join(""));
-        commands.push(
-            get_memory_stats(context.system, &cli::all_memory_flags(), cli.no_units).join(""),
+        get_cpu_stats(
+            context.system,
+            context.components,
+            &cli::all_cpu_flags(),
+            cli.no_units,
+            buf,
         );
-        commands
-            .push(get_network_stats(context.networks, None, cli.interval, cli.no_units).join(""));
-        commands.push(get_uptime_stats(&cli::all_uptime_flags()));
+        get_disk_stats(context.disks, &cli::all_disk_flags(), cli.no_units, buf);
+        get_memory_stats(context.system, &cli::all_memory_flags(), cli.no_units, buf);
+        get_network_stats(context.networks, None, cli.interval, cli.no_units, buf);
+        get_uptime_stats(&cli::all_uptime_flags(), buf);
     } else {
         if let Some(cpu_flag_refs) = config.flags.cpu_flag_refs() {
-            commands.push(get_cpu_stats(context.system, &cpu_flag_refs, cli.no_units).join(""));
+            get_cpu_stats(
+                context.system,
+                context.components,
+                &cpu_flag_refs,
+                cli.no_units,
+                buf,
+            );
         }
 
         if let Some(disk_flag_refs) = config.flags.disk_flag_refs() {
-            commands.push(get_disk_stats(context.disks, &disk_flag_refs, cli.no_units).join(""));
+            get_disk_stats(context.disks, &disk_flag_refs, cli.no_units, buf);
         }
 
         if let Some(memory_flag_refs) = config.flags.memory_flag_refs() {
-            commands
-                .push(get_memory_stats(context.system, &memory_flag_refs, cli.no_units).join(""));
+            get_memory_stats(context.system, &memory_flag_refs, cli.no_units, buf);
         }
 
-        if let Some(network_flags) = &config.flags.network_flags {
-            commands.push(
-                get_network_stats(
-                    context.networks,
-                    Some(network_flags),
-                    cli.interval,
-                    cli.no_units,
-                )
-                .join(""),
+        if let Some(network_flags) = config.flags.network_flags {
+            get_network_stats(
+                context.networks,
+                Some(network_flags),
+                cli.interval,
+                cli.no_units,
+                buf,
             );
         }
 
         if let Some(uptime_flag_refs) = config.flags.uptime_flag_refs() {
-            commands.push(get_uptime_stats(&uptime_flag_refs));
+            get_uptime_stats(&uptime_flag_refs, buf);
         }
     }
 
-    Ok((commands, updated_tick))
+    Ok(updated_tick)
 }
 
 #[cfg(target_os = "macos")]
@@ -242,7 +254,6 @@ async fn collect_stats_commands(
 async fn main() -> Result<()> {
     let cli = cli::parse_args();
 
-    // Validate CLI arguments
     cli::validate_cli(&cli).context("Invalid CLI arguments")?;
 
     println!("SketchyBar Stats Provider is running.");

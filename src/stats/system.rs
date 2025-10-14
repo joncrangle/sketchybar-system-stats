@@ -1,39 +1,40 @@
+use std::fmt::Write;
 use sysinfo::System;
 
-pub fn get_system_stats(flags: &[&str]) -> Vec<String> {
-    let mut result = Vec::new();
+pub fn get_system_stats(flags: &[&str], buf: &mut String) {
     for &flag in flags {
         match flag {
             "arch" => {
-                result.push(format!("ARCH=\"{}\" ", System::cpu_arch()));
+                let _ = write!(buf, "ARCH=\"{}\" ", System::cpu_arch());
             }
             "distro" => {
-                result.push(format!("DISTRO=\"{}\" ", System::distribution_id()));
+                let _ = write!(buf, "DISTRO=\"{}\" ", System::distribution_id());
             }
 
             "host_name" => {
-                result.push(format!("HOST_NAME=\"{}\" ", System::host_name().unwrap()));
+                let _ = write!(buf, "HOST_NAME=\"{}\" ", System::host_name().unwrap());
             }
             "kernel_version" => {
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "KERNEL_VERSION=\"{}\" ",
                     System::kernel_version().unwrap()
-                ));
+                );
             }
             "name" => {
-                result.push(format!("SYSTEM_NAME=\"{}\" ", System::name().unwrap()));
+                let _ = write!(buf, "SYSTEM_NAME=\"{}\" ", System::name().unwrap());
             }
             "os_version" => {
-                result.push(format!("OS_VERSION=\"{}\" ", System::os_version().unwrap()));
+                let _ = write!(buf, "OS_VERSION=\"{}\" ", System::os_version().unwrap());
             }
             "long_os_version" => {
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "LONG_OS_VERSION=\"{}\" ",
                     System::long_os_version().unwrap()
-                ));
+                );
             }
             _ => {}
         }
     }
-    result
 }

@@ -1,11 +1,10 @@
 use crate::cli;
+use std::fmt::Write;
 use sysinfo::System;
 
 const BYTES_PER_GB: f32 = 1_073_741_824.0;
 
-pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool) -> Vec<String> {
-    let mut result = Vec::new();
-
+pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut String) {
     let ram_flag_present = flags
         .iter()
         .any(|&flag| cli::all_ram_flags().contains(&flag));
@@ -42,57 +41,61 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool) -> Vec<Strin
         match flag {
             "ram_available" => {
                 let unit = if no_units { "" } else { "GB" };
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "RAM_AVAILABLE=\"{:.1}{unit}\" ",
                     s.available_memory() as f32 / BYTES_PER_GB
-                ));
+                );
             }
             "ram_total" => {
                 let unit = if no_units { "" } else { "GB" };
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "RAM_TOTAL=\"{:.1}{unit}\" ",
                     ram_total as f32 / BYTES_PER_GB
-                ));
+                );
             }
             "ram_used" => {
                 let unit = if no_units { "" } else { "GB" };
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "RAM_USED=\"{:.1}{unit}\" ",
                     ram_used as f32 / BYTES_PER_GB
-                ));
+                );
             }
             "ram_usage" => {
                 let unit = if no_units { "" } else { "%" };
-                result.push(format!("RAM_USAGE=\"{ram_usage_percentage}{unit}\" "));
+                let _ = write!(buf, "RAM_USAGE=\"{ram_usage_percentage}{unit}\" ");
             }
             "swp_free" => {
                 let unit = if no_units { "" } else { "GB" };
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "SWP_FREE=\"{:.1}{unit}\" ",
                     s.free_swap() as f32 / BYTES_PER_GB
-                ));
+                );
             }
             "swp_total" => {
                 let unit = if no_units { "" } else { "GB" };
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "SWP_TOTAL=\"{:.1}{unit}\" ",
                     swp_total as f32 / BYTES_PER_GB
-                ));
+                );
             }
             "swp_used" => {
                 let unit = if no_units { "" } else { "GB" };
-                result.push(format!(
+                let _ = write!(
+                    buf,
                     "SWP_USED=\"{:.1}{unit}\" ",
                     swp_used as f32 / BYTES_PER_GB
-                ));
+                );
             }
             "swp_usage" => {
                 let unit = if no_units { "" } else { "%" };
-                result.push(format!("SWP_USAGE=\"{swp_usage_percentage}{unit}\" "));
+                let _ = write!(buf, "SWP_USAGE=\"{swp_usage_percentage}{unit}\" ");
             }
             _ => {}
         }
     }
-
-    result
 }

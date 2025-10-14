@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use sysinfo::Networks;
 
 pub fn get_network_stats(
@@ -5,9 +6,8 @@ pub fn get_network_stats(
     interfaces: Option<&[String]>,
     interval: u32,
     no_units: bool,
-) -> Vec<String> {
-    let mut result = Vec::new();
-
+    buf: &mut String,
+) {
     let interfaces_to_check: Vec<&str> = match interfaces {
         Some(ifaces) => ifaces.iter().map(String::as_str).collect(),
         None => n
@@ -20,14 +20,14 @@ pub fn get_network_stats(
 
     for interface in interfaces_to_check {
         if let Some(data) = n.get(interface) {
-            result.push(format!(
+            let _ = write!(
+                buf,
                 "NETWORK_RX_{}=\"{}{unit}\" NETWORK_TX_{}=\"{}{unit}\" ",
                 interface,
                 (data.received() / 1024) / interval as u64,
                 interface,
                 (data.transmitted() / 1024) / interval as u64
-            ));
+            );
         }
     }
-    result
 }
