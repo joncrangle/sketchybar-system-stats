@@ -5,12 +5,13 @@ mod stats;
 use anyhow::{Context, Result};
 use sketchybar::Sketchybar;
 use stats::{
-    get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats, get_system_stats,
-    get_uptime_stats,
+    get_battery_stats, get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats,
+    get_system_stats, get_uptime_stats,
 };
 use sysinfo::{Components, Disks, Networks, System};
 
 struct ProcessedFlags<'a> {
+    battery_flags: Option<&'a [String]>,
     cpu_flags: Option<&'a [String]>,
     disk_flags: Option<&'a [String]>,
     memory_flags: Option<&'a [String]>,
@@ -28,6 +29,7 @@ macro_rules! flag_refs_method {
 }
 
 impl<'a> ProcessedFlags<'a> {
+    flag_refs_method!(battery_flag_refs, battery_flags);
     flag_refs_method!(cpu_flag_refs, cpu_flags);
     flag_refs_method!(disk_flag_refs, disk_flags);
     flag_refs_method!(memory_flag_refs, memory_flags);
@@ -48,6 +50,7 @@ struct StatsConfig<'a> {
 
 fn process_cli_flags(cli: &cli::Cli) -> ProcessedFlags<'_> {
     ProcessedFlags {
+        battery_flags: cli.battery.as_deref(),
         cpu_flags: cli.cpu.as_deref(),
         disk_flags: cli.disk.as_deref(),
         memory_flags: cli.memory.as_deref(),
@@ -199,6 +202,7 @@ async fn collect_stats_commands(
     }
 
     if cli.all {
+        get_battery_stats(&cli::all_battery_flags(), cli.no_units, buf);
         get_cpu_stats(
             context.system,
             context.components,
@@ -211,6 +215,10 @@ async fn collect_stats_commands(
         get_network_stats(context.networks, None, cli.interval, cli.no_units, buf);
         get_uptime_stats(&cli::all_uptime_flags(), buf);
     } else {
+        if let Some(battery_flag_refs) = config.flags.battery_flag_refs() {
+            get_battery_stats(&battery_flag_refs, cli.no_units, buf);
+        }
+
         if let Some(cpu_flag_refs) = config.flags.cpu_flag_refs() {
             get_cpu_stats(
                 context.system,
@@ -279,6 +287,7 @@ mod tests {
     fn test_process_cli_flags() {
         let cli = cli::Cli {
             all: false,
+            battery: None,
             cpu: Some(vec!["usage".to_string()]),
             disk: None,
             memory: Some(vec!["ram_total".to_string()]),
@@ -304,6 +313,7 @@ mod tests {
     fn test_processed_flags_cpu_flag_refs() {
         let cpu_flags = vec!["usage".to_string(), "count".to_string()];
         let flags = ProcessedFlags {
+            battery_flags: None,
             cpu_flags: Some(&cpu_flags),
             disk_flags: None,
             memory_flags: None,
@@ -322,6 +332,7 @@ mod tests {
     #[test]
     fn test_processed_flags_returns_none_when_empty() {
         let flags = ProcessedFlags {
+            battery_flags: None,
             cpu_flags: None,
             disk_flags: None,
             memory_flags: None,
