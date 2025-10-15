@@ -15,6 +15,9 @@ pub struct Cli {
     #[arg(short = 'a', long, num_args = 0, help = "Get all stats")]
     pub all: bool,
 
+    #[arg(short = 'b', long, num_args = 1.., value_parser = all_battery_flags(), help = "Get battery stats")]
+    pub battery: Option<Vec<String>>,
+
     #[arg(short = 'c', long, num_args = 1.., value_parser = all_cpu_flags(), help = "Get CPU stats")]
     pub cpu: Option<Vec<String>>,
 
@@ -48,7 +51,7 @@ pub struct Cli {
     )]
     pub network_refresh_rate: u32,
 
-    #[arg(short = 'b', long, help = "Bar name (optional)")]
+    #[arg(long, help = "Bar name (optional)")]
     pub bar: Option<String>,
 
     #[arg(long, default_value_t = false, help = "Enable verbose output")]
@@ -87,6 +90,7 @@ pub fn validate_cli(cli: &Cli) -> Result<()> {
 
     // Validate that at least one stat type is requested if not using --all
     if !cli.all
+        && cli.battery.is_none()
         && cli.cpu.is_none()
         && cli.disk.is_none()
         && cli.memory.is_none()
@@ -98,6 +102,10 @@ pub fn validate_cli(cli: &Cli) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn all_battery_flags() -> Vec<&'static str> {
+    vec!["percentage", "remaining", "state", "time_to_full"]
 }
 
 pub fn all_cpu_flags() -> Vec<&'static str> {
@@ -147,6 +155,7 @@ mod tests {
     fn test_validate_cli_with_all_flag() {
         let cli = Cli {
             all: true,
+            battery: None,
             cpu: None,
             disk: None,
             memory: None,
@@ -166,6 +175,7 @@ mod tests {
     fn test_validate_cli_with_cpu_flag() {
         let cli = Cli {
             all: false,
+            battery: None,
             cpu: Some(vec!["usage".to_string()]),
             disk: None,
             memory: None,
@@ -185,6 +195,7 @@ mod tests {
     fn test_validate_cli_no_flags() {
         let cli = Cli {
             all: false,
+            battery: None,
             cpu: None,
             disk: None,
             memory: None,
@@ -204,6 +215,7 @@ mod tests {
     fn test_validate_cli_interval_too_low() {
         let cli = Cli {
             all: true,
+            battery: None,
             cpu: None,
             disk: None,
             memory: None,
@@ -223,6 +235,7 @@ mod tests {
     fn test_validate_cli_interval_too_high() {
         let cli = Cli {
             all: true,
+            battery: None,
             cpu: None,
             disk: None,
             memory: None,
@@ -242,6 +255,7 @@ mod tests {
     fn test_validate_cli_network_refresh_rate_too_low() {
         let cli = Cli {
             all: true,
+            battery: None,
             cpu: None,
             disk: None,
             memory: None,
@@ -261,6 +275,7 @@ mod tests {
     fn test_validate_cli_network_refresh_rate_too_high() {
         let cli = Cli {
             all: true,
+            battery: None,
             cpu: None,
             disk: None,
             memory: None,

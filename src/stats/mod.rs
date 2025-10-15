@@ -1,3 +1,4 @@
+mod battery;
 mod cpu;
 mod disk;
 mod memory;
@@ -7,6 +8,7 @@ mod uptime;
 
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind};
 
+pub use battery::get_battery_stats;
 pub use cpu::get_cpu_stats;
 pub use disk::get_disk_stats;
 pub use memory::get_memory_stats;

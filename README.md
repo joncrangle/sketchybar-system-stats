@@ -37,6 +37,7 @@ Usage: stats_provider [OPTIONS]
 
 Options:
   -a, --all                                        Get all stats
+  -b, --battery <BATTERY>...                       Get battery stats [possible values: percentage, remaining, state, time_to_full]
   -c, --cpu <CPU>...                               Get CPU stats [possible values: count, frequency, temperature, usage]
   -d, --disk <DISK>...                             Get disk stats [possible values: count, free, total, usage, used]
   -m, --memory <MEMORY>...                         Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
@@ -45,7 +46,7 @@ Options:
   -u, --uptime <UPTIME>...                         Get uptime stats [possible values: week, day, hour, min, sec]
   -i, --interval <INTERVAL>                        Refresh interval in seconds [default: 5]
       --network-refresh-rate <NETWORK_REFRESH_RATE> Network refresh rate (how often to refresh network interface list, in stat intervals) [default: 5]
-  -b, --bar <BAR>                                  Bar name (optional)
+      --bar <BAR>                                  Bar name (optional)
       --verbose                                    Enable verbose output
       --no-units                                   Output values without units
   -h, --help                                       Print help
@@ -145,6 +146,10 @@ Environment variables that can be provided by the `system_stats` event
 | Variable                 | Description                               |
 | ------------------------ | ----------------------------------------- |
 | `ARCH`                   | System architecture                       |
+| `BATTERY_PERCENTAGE`     | Battery charge level %                    |
+| `BATTERY_REMAINING`      | Time remaining until empty (min)          |
+| `BATTERY_STATE`          | Battery charging state                    |
+| `BATTERY_TIME_TO_FULL`   | Time until fully charged (min)            |
 | `CPU_COUNT`              | Number of CPU cores                       |
 | `CPU_FREQUENCY`          | CPU frequency MHz                         |
 | `CPU_TEMP`               | CPU temperature °C                        |
