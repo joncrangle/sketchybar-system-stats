@@ -6,6 +6,13 @@ This is a simple event provider for [Sketchybar](https://github.com/FelixKratz/S
 
 ## Installation
 
+### Homebrew
+
+```bash
+brew tap joncrangle/tap
+brew install sketchybar-system-stats
+```
+
 ### Prebuilt binaries
 
 You can download a prebuilt binary for Apple Silicon (aarch64) and Intel Macs (x86_64) from the [latest release](https://github.com/joncrangle/sketchybar-system-stats/releases).
