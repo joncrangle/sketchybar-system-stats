@@ -1,0 +1,77 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to test (without the v prefix)"
+        required: true
+        default: "0.8.0"
+
+permissions:
+  contents: read
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+
+      - name: Get release version
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION=${{ github.event.inputs.version }}
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download ARM binary SHA
+        id: arm
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          curl -L -o arm.sha256 \
+            https://github.com/joncrangle/sketchybar-system-stats/releases/download/${VERSION}/stats_provider-${VERSION}-aarch64-apple-darwin.tar.gz.sha256
+          ARM_SHA256=$(awk '{print $1}' arm.sha256)
+          echo "arm_sha256=$ARM_SHA256" >> $GITHUB_OUTPUT
+
+      - name: Download Intel binary SHA
+        id: intel
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          curl -L -o intel.sha256 \
+            https://github.com/joncrangle/sketchybar-system-stats/releases/download/${VERSION}/stats_provider-${VERSION}-x86_64-apple-darwin.tar.gz.sha256
+          INTEL_SHA256=$(awk '{print $1}' intel.sha256)
+          echo "intel_sha256=$INTEL_SHA256" >> $GITHUB_OUTPUT
+
+      - name: Clone Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: joncrangle/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update formula
+        run: |
+          FORMULA=tap/Formula/sketchybar-system-stats.rb
+          VERSION=${{ steps.get_version.outputs.version }}
+          ARM_SHA256=${{ steps.arm.outputs.arm_sha256 }}
+          INTEL_SHA256=${{ steps.intel.outputs.intel_sha256 }}
+          sed -i "s|stats_provider-[0-9.]\+-aarch64-apple-darwin.tar.gz|stats_provider-${VERSION}-aarch64-apple-darwin.tar.gz|g" $FORMULA
+          sed -i "s|stats_provider-[0-9.]\+-x86_64-apple-darwin.tar.gz|stats_provider-${VERSION}-x86_64-apple-darwin.tar.gz|g" $FORMULA
+          sed -i "/aarch64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${ARM_SHA256}\"|" $FORMULA
+          sed -i "/x86_64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${INTEL_SHA256}\"|" $FORMULA
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/sketchybar-system-stats.rb
+          git commit -m "Update sketchybar-system-stats to v${{ steps.get_version.outputs.version }}"
+          git push
