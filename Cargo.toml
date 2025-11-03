@@ -13,4 +13,4 @@ sysinfo = { version = "0.37.2", default-features = false, features = ["component
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
-cc = "1.2.43"
+cc = "1.2.44"
