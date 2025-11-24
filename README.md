@@ -124,12 +124,9 @@ stats_provider --network en0 wlan0 --network-refresh-rate 2
 stats_provider --network en0 --network-refresh-rate 10
 ```
 
-**Benefits:**
-- **Performance**: Reduces system calls by refreshing interface list less frequently
-- **Efficiency**: Network interfaces don't change rapidly, so frequent rescanning is unnecessary
-- **Customizable**: Adjust based on your network environment stability
-
 **Recommendation:** Use higher values (8-15) for stable network setups, lower values (2-5) for environments where interfaces frequently change.
+
+### Verbose Output
 
 Add the `--verbose` flag to see more detailed output:
 
