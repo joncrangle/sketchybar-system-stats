@@ -192,7 +192,7 @@ Run `stats_provider` with desired options by including it in your `sketchybarrc`
 ```bash
 killall stats_provider
 # Update with path to stats_provider
-$CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --disk usage --memory ram_usage &
+stats_provider --cpu usage --disk usage --memory ram_usage &
 ```
 
 Example: use `stats_provider` to add an item `disk_usage`, subscribe to the `system_stats` event and update the `disk_usage` item.
@@ -208,7 +208,7 @@ sketchybar --add item disk_usage right \
 
 ```lua
 -- Update with path to stats_provider
-sbar.exec('killall stats_provider >/dev/null; $CONFIG_DIR/sketchybar-system-stats/target/release/stats_provider --cpu usage --disk usage --memory ram_usage')
+sbar.exec('killall stats_provider >/dev/null; stats_provider --cpu usage --disk usage --memory ram_usage')
 
 -- Subscribe and use the `DISK_USAGE` var
 local disk = sbar.add('item', 'disk', {
