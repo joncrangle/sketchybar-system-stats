@@ -2,7 +2,10 @@ mod cli;
 mod sketchybar;
 mod stats;
 
+use std::fs::File;
+
 use anyhow::{Context, Result};
+use fs2::FileExt;
 use sketchybar::Sketchybar;
 use stats::{
     get_battery_stats, get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats,
@@ -255,9 +258,20 @@ async fn collect_stats_commands(
     Ok(updated_tick)
 }
 
+fn acquire_lock() -> Option<File> {
+    let file = File::create("/tmp/stats_provider.lock").ok()?;
+    file.try_lock_exclusive().ok()?;
+    Some(file)
+}
+
 #[cfg(target_os = "macos")]
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _lock = match acquire_lock() {
+        Some(lock) => lock,
+        None => return Ok(()),
+    };
+
     let cli = cli::parse_args();
 
     cli::validate_cli(&cli).context("Invalid CLI arguments")?;
