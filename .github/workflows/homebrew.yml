@@ -62,8 +62,8 @@ jobs:
           VERSION=${{ steps.get_version.outputs.version }}
           ARM_SHA256=${{ steps.arm.outputs.arm_sha256 }}
           INTEL_SHA256=${{ steps.intel.outputs.intel_sha256 }}
-          sed -i "s|stats_provider-[0-9.]\+-aarch64-apple-darwin.tar.gz|stats_provider-${VERSION}-aarch64-apple-darwin.tar.gz|g" $FORMULA
-          sed -i "s|stats_provider-[0-9.]\+-x86_64-apple-darwin.tar.gz|stats_provider-${VERSION}-x86_64-apple-darwin.tar.gz|g" $FORMULA
+          sed -i "s|releases/download/[^/]*/stats_provider-[^-]*-aarch64-apple-darwin|releases/download/${VERSION}/stats_provider-${VERSION}-aarch64-apple-darwin|g" $FORMULA
+          sed -i "s|releases/download/[^/]*/stats_provider-[^-]*-x86_64-apple-darwin|releases/download/${VERSION}/stats_provider-${VERSION}-x86_64-apple-darwin|g" $FORMULA
           sed -i "/aarch64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${ARM_SHA256}\"|" $FORMULA
           sed -i "/x86_64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${INTEL_SHA256}\"|" $FORMULA
 
