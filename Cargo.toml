@@ -10,8 +10,8 @@ anyhow = "1.0.100"
 clap = { version = "4.5.54", features = ["derive"] }
 fs2 = "0.4.3"
 starship-battery = "0.10.3"
-sysinfo = { version = "0.37.2", default-features = false, features = ["component", "disk", "network", "system"] }
+sysinfo = { version = "0.38.0", default-features = false, features = ["component", "disk", "network", "system"] }
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
-cc = "1.2.53"
+cc = "1.2"
