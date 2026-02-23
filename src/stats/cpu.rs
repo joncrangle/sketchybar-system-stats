@@ -35,11 +35,10 @@ pub fn get_cpu_stats(
                     if cpu_labels
                         .iter()
                         .any(|&label| component.label().contains(label))
+                        && let Some(temperature) = component.temperature()
                     {
-                        if let Some(temperature) = component.temperature() {
-                            total_temp += temperature;
-                            count += 1;
-                        }
+                        total_temp += temperature;
+                        count += 1;
                     }
                 }
 

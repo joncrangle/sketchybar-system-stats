@@ -55,16 +55,16 @@ pub fn get_uptime_stats(flags: &[&str], buf: &mut String) {
     let mut has_value = false;
 
     for &flag in &sorted_flags {
-        if let Some(unit) = TIME_UNITS.iter().find(|u| u.name == flag) {
-            if uptime_secs >= unit.seconds {
-                let value = uptime_secs / unit.seconds;
-                uptime_secs %= unit.seconds;
-                if has_value {
-                    let _ = write!(buf, " ");
-                }
-                let _ = write!(buf, "{}{}", value, unit.suffix);
-                has_value = true;
+        if let Some(unit) = TIME_UNITS.iter().find(|u| u.name == flag)
+            && uptime_secs >= unit.seconds
+        {
+            let value = uptime_secs / unit.seconds;
+            uptime_secs %= unit.seconds;
+            if has_value {
+                let _ = write!(buf, " ");
             }
+            let _ = write!(buf, "{}{}", value, unit.suffix);
+            has_value = true;
         }
     }
 
