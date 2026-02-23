@@ -2,15 +2,20 @@
 name = "stats_provider"
 version = "0.8.1"
 description = "A simple system stats event provider for Sketchybar."
-edition = "2021"
+edition = "2024"
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.101"
-clap = { version = "4.5.58", features = ["derive"] }
+anyhow = "1.0.102"
+clap = { version = "4.5.60", features = ["derive"] }
 fs2 = "0.4.3"
 starship-battery = "0.10.3"
-sysinfo = { version = "0.38.2", default-features = false, features = ["component", "disk", "network", "system"] }
+sysinfo = { version = "0.38.2", default-features = false, features = [
+  "component",
+  "disk",
+  "network",
+  "system",
+] }
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]

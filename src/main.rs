@@ -267,12 +267,12 @@ fn acquire_lock() -> Option<File> {
 #[cfg(target_os = "macos")]
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = cli::parse_args();
+
     let _lock = match acquire_lock() {
         Some(lock) => lock,
         None => return Ok(()),
     };
-
-    let cli = cli::parse_args();
 
     cli::validate_cli(&cli).context("Invalid CLI arguments")?;
 

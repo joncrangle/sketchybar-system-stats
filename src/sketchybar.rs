@@ -9,7 +9,7 @@ use tokio::time::{Duration, Instant};
 const PORT_REFRESH_INTERVAL_SECS: u64 = 300;
 
 #[link(name = "sketchybar", kind = "static")]
-extern "C" {
+unsafe extern "C" {
     fn sketchybar(message: *const c_char, bar_name: *const c_char) -> *mut c_char;
     fn free_sketchybar_response(response: *mut c_char);
     fn cleanup_sketchybar();
