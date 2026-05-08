@@ -221,7 +221,7 @@ end)
 
 ## Why?
 
-I wanted a single simple, lightweight binary to provide stats to Sketchybar. I also wanted to learn how to code in Rust, and learning by doing is a great way to learn.
+I wanted a single simple, lightweight binary to provide stats to Sketchybar.
 
 ## Thanks
 
