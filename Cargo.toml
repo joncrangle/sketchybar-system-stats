@@ -10,7 +10,7 @@ anyhow = "1.0.102"
 clap = { version = "4.6.1", features = ["derive"] }
 fs2 = "0.4.3"
 starship-battery = "0.11.0"
-sysinfo = { version = "0.38.4", default-features = false, features = [
+sysinfo = { version = "0.39.1", default-features = false, features = [
   "component",
   "disk",
   "network",
