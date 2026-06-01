@@ -162,15 +162,15 @@ async fn run_stats_loop(
 
     loop {
         tokio::select! {
-            result = collect_stats_commands(cli, config, context, network_refresh_tick, message_buffer) => {
+            result = collect_and_send_stats(
+                cli,
+                sketchybar,
+                config,
+                context,
+                network_refresh_tick,
+                message_buffer,
+            ) => {
                 network_refresh_tick = result?;
-
-                if cli.verbose {
-                    println!("Current message: {}", message_buffer);
-                }
-                sketchybar
-                    .send_message("trigger", "system_stats", Some(message_buffer), cli.verbose)
-                    .await?;
             }
             _ = tokio::signal::ctrl_c() => {
                 if cli.verbose {
@@ -183,7 +183,29 @@ async fn run_stats_loop(
     }
 }
 
-async fn collect_stats_commands(
+async fn collect_and_send_stats(
+    cli: &cli::Cli,
+    sketchybar: &Sketchybar,
+    config: &StatsConfig<'_>,
+    context: &mut StatsContext<'_>,
+    network_refresh_tick: u32,
+    buf: &mut String,
+) -> Result<u32> {
+    let updated_tick = collect_stats_commands(cli, config, context, network_refresh_tick, buf)?;
+
+    if cli.verbose {
+        println!("Current message: {}", buf);
+    }
+    sketchybar
+        .send_message("trigger", "system_stats", Some(buf), cli.verbose)
+        .await?;
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(cli.interval.into())).await;
+
+    Ok(updated_tick)
+}
+
+fn collect_stats_commands(
     cli: &cli::Cli,
     config: &StatsConfig<'_>,
     context: &mut StatsContext<'_>,
@@ -192,7 +214,6 @@ async fn collect_stats_commands(
 ) -> Result<u32> {
     buf.clear();
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(cli.interval.into())).await;
     context.system.refresh_specifics(config.refresh_kind);
     context.disks.refresh(true);
 

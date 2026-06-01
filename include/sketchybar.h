@@ -162,11 +162,19 @@ char *sketchybar(const char *message, const char *bar_name) {
   }
 
   char *response = mach_send_message(g_mach_port, formatted_message, caret + 1);
+  if (!response) {
+    if (g_mach_port != MACH_PORT_NULL) {
+      mach_port_deallocate(mach_task_self(), g_mach_port);
+      g_mach_port = MACH_PORT_NULL;
+    }
+    g_mach_port = mach_get_bs_port((char *)bar_name);
+    response = mach_send_message(g_mach_port, formatted_message, caret + 1);
+  }
   pthread_mutex_unlock(&g_port_mutex);
 
   free(formatted_message);
 
-  return response ? response : strdup("");
+  return response;
 }
 
 bool refresh_sketchybar_port(const char *bar_name) {

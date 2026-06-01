@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::ptr::NonNull;
 use std::sync::Once;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant};
@@ -17,6 +18,29 @@ unsafe extern "C" {
 }
 
 static CLEANUP: Once = Once::new();
+
+struct SketchybarResponse {
+    ptr: NonNull<c_char>,
+}
+
+impl SketchybarResponse {
+    fn new(ptr: *mut c_char) -> Result<Self> {
+        let ptr = NonNull::new(ptr).context("Failed to get response from sketchybar")?;
+        Ok(Self { ptr })
+    }
+
+    unsafe fn as_c_str(&self) -> &CStr {
+        unsafe { CStr::from_ptr(self.ptr.as_ptr()) }
+    }
+}
+
+impl Drop for SketchybarResponse {
+    fn drop(&mut self) {
+        unsafe {
+            free_sketchybar_response(self.ptr.as_ptr());
+        }
+    }
+}
 
 struct PortState {
     last_refresh: Instant,
@@ -65,19 +89,16 @@ impl Sketchybar {
         let message = format!("--{} {} {}", flag, event, payload.unwrap_or_default());
         let c_message = CString::new(message).context("Failed to create CString for message")?;
 
-        let response_ptr = unsafe { sketchybar(c_message.as_ptr(), self.bar_name.as_ptr()) };
-
-        if response_ptr.is_null() {
-            anyhow::bail!("Failed to get response from sketchybar");
-        }
+        let response = SketchybarResponse::new(unsafe {
+            sketchybar(c_message.as_ptr(), self.bar_name.as_ptr())
+        })?;
 
         let response = unsafe {
-            let response = CStr::from_ptr(response_ptr)
+            response
+                .as_c_str()
                 .to_str()
                 .context("Failed to convert C string to Rust string")?
-                .to_owned();
-            free_sketchybar_response(response_ptr);
-            response
+                .to_owned()
         };
 
         if verbose {
