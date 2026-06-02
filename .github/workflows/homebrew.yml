@@ -17,37 +17,48 @@ permissions:
 jobs:
   update-formula:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout main repository
         uses: actions/checkout@v6
 
       - name: Get release version
         id: get_version
+        shell: bash
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION=${{ github.event.inputs.version }}
+            VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION=${GITHUB_REF#refs/tags/v}
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Using version: $VERSION"
 
       - name: Download ARM binary SHA
         id: arm
+        shell: bash
         run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
-          curl -L -o arm.sha256 \
-            https://github.com/joncrangle/sketchybar-system-stats/releases/download/${VERSION}/stats_provider-${VERSION}-aarch64-apple-darwin.tar.gz.sha256
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          curl -fsSL -o arm.sha256 \
+            "https://github.com/joncrangle/sketchybar-system-stats/releases/download/${VERSION}/stats_provider-${VERSION}-aarch64-apple-darwin.tar.gz.sha256"
+
           ARM_SHA256=$(awk '{print $1}' arm.sha256)
-          echo "arm_sha256=$ARM_SHA256" >> $GITHUB_OUTPUT
+          echo "arm_sha256=$ARM_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Download Intel binary SHA
         id: intel
+        shell: bash
         run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
-          curl -L -o intel.sha256 \
-            https://github.com/joncrangle/sketchybar-system-stats/releases/download/${VERSION}/stats_provider-${VERSION}-x86_64-apple-darwin.tar.gz.sha256
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          curl -fsSL -o intel.sha256 \
+            "https://github.com/joncrangle/sketchybar-system-stats/releases/download/${VERSION}/stats_provider-${VERSION}-x86_64-apple-darwin.tar.gz.sha256"
+
           INTEL_SHA256=$(awk '{print $1}' intel.sha256)
-          echo "intel_sha256=$INTEL_SHA256" >> $GITHUB_OUTPUT
+          echo "intel_sha256=$INTEL_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Clone Homebrew tap
         uses: actions/checkout@v6
@@ -57,21 +68,35 @@ jobs:
           path: tap
 
       - name: Update formula
+        shell: bash
         run: |
-          FORMULA=tap/Formula/sketchybar-system-stats.rb
-          VERSION=${{ steps.get_version.outputs.version }}
-          ARM_SHA256=${{ steps.arm.outputs.arm_sha256 }}
-          INTEL_SHA256=${{ steps.intel.outputs.intel_sha256 }}
-          sed -i "s|releases/download/[^/]*/stats_provider-[^-]*-aarch64-apple-darwin|releases/download/${VERSION}/stats_provider-${VERSION}-aarch64-apple-darwin|g" $FORMULA
-          sed -i "s|releases/download/[^/]*/stats_provider-[^-]*-x86_64-apple-darwin|releases/download/${VERSION}/stats_provider-${VERSION}-x86_64-apple-darwin|g" $FORMULA
-          sed -i "/aarch64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${ARM_SHA256}\"|" $FORMULA
-          sed -i "/x86_64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${INTEL_SHA256}\"|" $FORMULA
+          FORMULA="tap/Formula/sketchybar-system-stats.rb"
+          VERSION="${{ steps.get_version.outputs.version }}"
+          ARM_SHA256="${{ steps.arm.outputs.arm_sha256 }}"
+          INTEL_SHA256="${{ steps.intel.outputs.intel_sha256 }}"
+
+          sed -i "s|releases/download/[^/]*/stats_provider-[^-]*-aarch64-apple-darwin|releases/download/${VERSION}/stats_provider-${VERSION}-aarch64-apple-darwin|g" "$FORMULA"
+
+          sed -i "s|releases/download/[^/]*/stats_provider-[^-]*-x86_64-apple-darwin|releases/download/${VERSION}/stats_provider-${VERSION}-x86_64-apple-darwin|g" "$FORMULA"
+
+          sed -i "/aarch64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${ARM_SHA256}\"|" "$FORMULA"
+
+          sed -i "/x86_64-apple-darwin.tar.gz/,/sha256/ s|sha256 \".*\"|sha256 \"${INTEL_SHA256}\"|" "$FORMULA"
 
       - name: Commit and push
+        shell: bash
         run: |
           cd tap
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add Formula/sketchybar-system-stats.rb
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
           git commit -m "Update sketchybar-system-stats to v${{ steps.get_version.outputs.version }}"
           git push
