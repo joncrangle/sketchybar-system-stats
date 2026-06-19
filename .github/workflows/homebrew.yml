@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout main repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get release version
         id: get_version
@@ -61,7 +61,7 @@ jobs:
           echo "intel_sha256=$INTEL_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Clone Homebrew tap
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: joncrangle/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
