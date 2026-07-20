@@ -6,11 +6,11 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.103"
-clap = { version = "4.6.1", features = ["derive"] }
+anyhow = "1.0.104"
+clap = { version = "4.6.3", features = ["derive"] }
 fs2 = "0.4.3"
-starship-battery = "0.11.0"
-sysinfo = { version = "0.39.5", default-features = false, features = [
+starship-battery = "0.11.1"
+sysinfo = { version = "0.39.6", default-features = false, features = [
   "component",
   "disk",
   "network",
@@ -19,4 +19,4 @@ sysinfo = { version = "0.39.5", default-features = false, features = [
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
-cc = "1.2"
+cc = "1.3"
