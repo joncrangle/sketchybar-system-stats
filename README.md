@@ -17,6 +17,14 @@ brew install sketchybar-system-stats
 
 You can download a prebuilt binary for Apple Silicon (aarch64) and Intel Macs (x86_64) from the [latest release](https://github.com/joncrangle/sketchybar-system-stats/releases).
 
+### Mise
+
+Install and manage globally with [mise](https://mise.jdx.dev/):
+
+```bash
+mise use -g github:joncrangle/sketchybar-system-stats@latest
+```
+
 ### Build locally
 
 1. [Install the Rust toolchain](https://rustup.rs/).
@@ -36,6 +44,7 @@ cargo build --release
 ## CLI usage
 
 Use the `help` command to get usage information:
+
 ```console
 $ stats_provider --help
 A simple system stats event provider for Sketchybar.
@@ -61,11 +70,13 @@ Options:
 ```
 
 Example: trigger event with cpu, disk and ram usage percentages at a refresh interval of 2 seconds:
+
 ```bash
 stats_provider --cpu usage --disk usage --memory ram_usage --interval 2
 ```
 
 Example: network monitoring with optimized refresh rate:
+
 ```bash
 # Monitor network with interface refresh every 8 stat intervals
 stats_provider --network en0 --interval 3 --network-refresh-rate 8
@@ -85,6 +96,7 @@ stats_provider --uptime week hour  # Shows "2w 5h"
 ```
 
 Available uptime units:
+
 - `week` (w) - weeks
 - `day` (d) - days
 - `hour` (h) - hours
@@ -180,7 +192,7 @@ Environment variables that can be provided by the `system_stats` event
 | `SWP_USAGE`              | Swap usage %                              |
 | `SWP_USED`               | Used swap GB                              |
 | `SYSTEM_NAME`            | System name (i.e. Darwin)                 |
-| `UPTIME`                 | System uptime (customizable units)       |
+| `UPTIME`                 | System uptime (customizable units)        |
 
 > [!NOTE]
 > System stats that are not expected to change between system restarts (e.g. `NAME`, `OS_VERSION`, etc.) are sent when the app binary starts, but are not refreshed.
@@ -225,5 +237,5 @@ I wanted a single simple, lightweight binary to provide stats to Sketchybar.
 
 ## Thanks
 
-* [Sketchybar](https://github.com/FelixKratz/SketchyBar) and [SbarLua](https://github.com/FelixKratz/SbarLua)
-* [sketchybar-rs](https://github.com/johnallen3d/sketchybar-rs)
+- [Sketchybar](https://github.com/FelixKratz/SketchyBar) and [SbarLua](https://github.com/FelixKratz/SbarLua)
+- [sketchybar-rs](https://github.com/johnallen3d/sketchybar-rs)
