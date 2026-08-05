@@ -411,4 +411,155 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_collect_stats_commands_all_dispatch_emits_every_flag() {
+        let cli = cli::Cli {
+            all: true,
+            battery: None,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: 5,
+            network_refresh_rate: 5,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        let flags = process_cli_flags(&cli);
+        let config = StatsConfig {
+            flags,
+            refresh_kind: stats::build_refresh_kind(),
+        };
+        let mut system = System::new_with_specifics(stats::build_refresh_kind());
+        let mut disks = Disks::new_with_refreshed_list();
+        let mut networks = Networks::new_with_refreshed_list();
+        let mut components = Components::new_with_refreshed_list();
+        let mut context = StatsContext {
+            system: &mut system,
+            disks: &mut disks,
+            networks: &mut networks,
+            components: &mut components,
+            network_baselines: NetworkRateBaselines::default(),
+        };
+        let mut buf = String::new();
+
+        let updated_tick =
+            collect_stats_commands(&cli, &config, &mut context, 0, &mut buf).unwrap();
+
+        for key in ["CPU_COUNT=", "CPU_FREQUENCY=", "CPU_TEMP=", "CPU_USAGE="] {
+            assert!(buf.contains(key), "missing CPU key {key} in: {buf}");
+        }
+        for key in [
+            "DISK_COUNT=",
+            "DISK_FREE=",
+            "DISK_TOTAL=",
+            "DISK_USED=",
+            "DISK_USAGE=",
+        ] {
+            assert!(buf.contains(key), "missing disk key {key} in: {buf}");
+        }
+        for key in [
+            "RAM_AVAILABLE=",
+            "RAM_TOTAL=",
+            "RAM_USED=",
+            "RAM_USAGE=",
+            "SWP_FREE=",
+            "SWP_TOTAL=",
+            "SWP_USED=",
+            "SWP_USAGE=",
+        ] {
+            assert!(buf.contains(key), "missing memory key {key} in: {buf}");
+        }
+        assert!(buf.contains("UPTIME=\""), "missing uptime in: {buf}");
+        assert!(buf.contains("NETWORK_RX_"), "missing network rx in: {buf}");
+        assert!(buf.contains("NETWORK_TX_"), "missing network tx in: {buf}");
+
+        // System stats are startup-only (send_initial_system_stats), so the
+        // per-tick buffer must not contain any system keys even with --all.
+        // Keys carry the opening quote to avoid substring collisions with
+        // e.g. a NETWORK_RX_SYSTEM_NAME= key.
+        for key in [
+            "ARCH=\"",
+            "DISTRO=\"",
+            "HOST_NAME=\"",
+            "KERNEL_VERSION=\"",
+            "SYSTEM_NAME=\"",
+            "OS_VERSION=\"",
+            "LONG_OS_VERSION=\"",
+        ] {
+            assert!(
+                !buf.contains(key),
+                "system key {key} leaked into per-tick buffer: {buf}"
+            );
+        }
+
+        // Battery is hardware-dependent: percentage and state are always
+        // emitted together when a battery exists, otherwise the machine is
+        // battery-less and no battery keys appear.
+        if buf.contains("BATTERY_PERCENTAGE=") {
+            assert!(
+                buf.contains("BATTERY_STATE="),
+                "battery state missing in: {buf}"
+            );
+        }
+
+        assert_eq!(
+            updated_tick, 1,
+            "tick 0 + 1 below refresh rate 5, got {updated_tick}"
+        );
+    }
+
+    #[test]
+    fn test_collect_stats_commands_network_refresh_tick_wraps() {
+        let cli = cli::Cli {
+            all: true,
+            battery: None,
+            cpu: None,
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: 5,
+            network_refresh_rate: 5,
+            bar: None,
+            verbose: false,
+            no_units: false,
+        };
+        let flags = process_cli_flags(&cli);
+        let config = StatsConfig {
+            flags,
+            refresh_kind: stats::build_refresh_kind(),
+        };
+        let mut system = System::new_with_specifics(stats::build_refresh_kind());
+        let mut disks = Disks::new_with_refreshed_list();
+        let mut networks = Networks::new_with_refreshed_list();
+        let mut components = Components::new_with_refreshed_list();
+        let mut context = StatsContext {
+            system: &mut system,
+            disks: &mut disks,
+            networks: &mut networks,
+            components: &mut components,
+            network_baselines: NetworkRateBaselines::default(),
+        };
+        let mut buf = String::new();
+
+        // tick 4 + 1 == refresh rate 5: re-list the interfaces and reset to 0.
+        let wrapped = collect_stats_commands(&cli, &config, &mut context, 4, &mut buf).unwrap();
+        assert_eq!(
+            wrapped, 0,
+            "tick at refresh rate - 1 should wrap to 0, got {wrapped}"
+        );
+
+        // tick 0 + 1 < refresh rate 5: just increment.
+        let incremented = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf).unwrap();
+        assert_eq!(
+            incremented, 1,
+            "tick below refresh rate should increment, got {incremented}"
+        );
+    }
 }
