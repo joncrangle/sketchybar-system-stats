@@ -1,3 +1,4 @@
+use super::{PERCENT, SECONDS_PER_MINUTE, unit};
 use starship_battery::{Manager, State};
 use std::fmt::Write;
 
@@ -21,8 +22,8 @@ pub fn get_battery_stats(flags: &[&str], no_units: bool, buf: &mut String) {
     for &flag in flags {
         match flag {
             "percentage" => {
-                let percentage = (battery.state_of_charge().value * 100.0).round() as u32;
-                let unit = if no_units { "" } else { "%" };
+                let percentage = (battery.state_of_charge().value * PERCENT).round() as u32;
+                let unit = unit(no_units, "%");
                 let _ = write!(buf, "BATTERY_PERCENTAGE=\"{percentage}{unit}\" ");
             }
             "state" => {
@@ -37,15 +38,15 @@ pub fn get_battery_stats(flags: &[&str], no_units: bool, buf: &mut String) {
             }
             "remaining" => {
                 if let Some(time) = battery.time_to_empty() {
-                    let mins = time.value as u32 / 60;
-                    let unit = if no_units { "" } else { "min" };
+                    let mins = time.value as u64 / SECONDS_PER_MINUTE;
+                    let unit = unit(no_units, "min");
                     let _ = write!(buf, "BATTERY_REMAINING=\"{mins}{unit}\" ");
                 }
             }
             "time_to_full" => {
                 if let Some(time) = battery.time_to_full() {
-                    let mins = time.value as u32 / 60;
-                    let unit = if no_units { "" } else { "min" };
+                    let mins = time.value as u64 / SECONDS_PER_MINUTE;
+                    let unit = unit(no_units, "min");
                     let _ = write!(buf, "BATTERY_TIME_TO_FULL=\"{mins}{unit}\" ");
                 }
             }

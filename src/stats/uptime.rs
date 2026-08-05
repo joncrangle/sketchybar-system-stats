@@ -47,7 +47,12 @@ pub fn get_uptime_stats(flags: &[&str], buf: &mut String) {
             .filter(|&flag| TIME_UNITS.iter().any(|u| u.name == flag))
             .collect();
 
-        flags_vec.sort_by_key(|&flag| TIME_UNITS.iter().position(|u| u.name == flag).unwrap());
+        flags_vec.sort_by_key(|&flag| {
+            TIME_UNITS
+                .iter()
+                .position(|u| u.name == flag)
+                .unwrap_or(usize::MAX)
+        });
         flags_vec
     };
 

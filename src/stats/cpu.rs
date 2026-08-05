@@ -1,3 +1,4 @@
+use super::{NO_TEMP_SENTINEL, unit};
 use std::fmt::Write;
 use sysinfo::{Components, System};
 
@@ -22,7 +23,7 @@ pub fn get_cpu_stats(
             "frequency" => {
                 let total_frequency: u64 = s.cpus().iter().map(|cpu| cpu.frequency()).sum();
                 let avg_freq = total_frequency / cpu_count as u64;
-                let unit = if no_units { "" } else { "MHz" };
+                let unit = unit(no_units, "MHz");
                 let _ = write!(buf, "CPU_FREQUENCY=\"{avg_freq}{unit}\" ");
             }
             "temperature" => {
@@ -45,18 +46,18 @@ pub fn get_cpu_stats(
                 let average_temp = if count > 0 {
                     total_temp / count as f32
                 } else {
-                    -1.0
+                    NO_TEMP_SENTINEL
                 };
 
-                let unit = if no_units { "" } else { "°C" };
-                if average_temp != -1.0 {
+                let unit = unit(no_units, "°C");
+                if average_temp != NO_TEMP_SENTINEL {
                     let _ = write!(buf, "CPU_TEMP=\"{average_temp:.1}{unit}\" ");
                 } else {
                     let _ = write!(buf, "CPU_TEMP=\"N/A{unit}\" ");
                 }
             }
             "usage" => {
-                let unit = if no_units { "" } else { "%" };
+                let unit = unit(no_units, "%");
                 let _ = write!(
                     buf,
                     "CPU_USAGE=\"{:.0}{unit}\" ",
