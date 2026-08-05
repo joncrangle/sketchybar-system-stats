@@ -145,14 +145,14 @@ Add the `--verbose` flag to see more detailed output:
 ```console
 $ stats_provider --cpu usage --disk usage --memory ram_usage --interval 2 --verbose
 SketchyBar Stats Provider is running.
-Stats Provider CLI: Cli { all: false, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, interval: 2, bar: None, verbose: true }
-Successfully sent to SketchyBar: --add event system_stats
+Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, network_refresh_rate: 5, bar: None, verbose: true, no_units: false }
+Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats
 Current message: CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
+Successfully sent to SketchyBar: (Bar: sketchybar): --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
+Successfully sent to SketchyBar: (Bar: sketchybar): --trigger system_stats CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: --trigger system_stats CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
+Successfully sent to SketchyBar: (Bar: sketchybar): --trigger system_stats CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
 ```
 
 ## Usage with Sketchybar

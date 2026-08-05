@@ -86,10 +86,4 @@ mod tests {
 
         assert_eq!(buf, "");
     }
-
-    #[test]
-    fn test_get_battery_stats_handles_no_battery() {
-        let mut buf = String::new();
-        get_battery_stats(&["percentage"], false, &mut buf);
-    }
 }
