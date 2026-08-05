@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use fs2::FileExt;
 use sketchybar::Sketchybar;
 use stats::{
-    get_battery_stats, get_cpu_stats, get_disk_stats, get_memory_stats, get_network_stats,
-    get_system_stats, get_uptime_stats,
+    NetworkRateBaselines, get_battery_stats, get_cpu_stats, get_disk_stats, get_memory_stats,
+    get_network_stats, get_system_stats, get_uptime_stats,
 };
 use sysinfo::{Components, Disks, Networks, System};
 
@@ -43,7 +43,8 @@ struct StatsContext<'a> {
     system: &'a mut System,
     disks: &'a mut Disks,
     networks: &'a mut Networks,
-    components: &'a Components,
+    components: &'a mut Components,
+    network_baselines: NetworkRateBaselines,
 }
 
 struct StatsConfig<'a> {
@@ -118,7 +119,7 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let mut system = System::new_with_specifics(refresh_kind);
     let mut disks = Disks::new_with_refreshed_list();
     let mut networks = Networks::new_with_refreshed_list();
-    let components = Components::new_with_refreshed_list();
+    let mut components = Components::new_with_refreshed_list();
 
     if let Some(network_flags) = &cli.network {
         validate_network_interfaces(&networks, network_flags, cli.verbose)?;
@@ -145,7 +146,8 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
         system: &mut system,
         disks: &mut disks,
         networks: &mut networks,
-        components: &components,
+        components: &mut components,
+        network_baselines: NetworkRateBaselines::default(),
     };
 
     run_stats_loop(cli, sketchybar, &config, &mut context, &mut message_buffer).await
@@ -216,6 +218,7 @@ fn collect_stats_commands(
 
     context.system.refresh_specifics(config.refresh_kind);
     context.disks.refresh(true);
+    context.components.refresh(false);
 
     let mut updated_tick = network_refresh_tick + 1;
     if updated_tick >= cli.network_refresh_rate {
@@ -225,55 +228,70 @@ fn collect_stats_commands(
         context.networks.refresh(true);
     }
 
-    if cli.all {
-        get_battery_stats(&cli::all_battery_flags(), cli.no_units, buf);
+    let battery_flags: Option<Vec<&str>> = if cli.all {
+        Some(cli::all_battery_flags())
+    } else {
+        config.flags.battery_flag_refs()
+    };
+    if let Some(battery_flags) = battery_flags {
+        get_battery_stats(&battery_flags, cli.no_units, buf);
+    }
+
+    let cpu_flags: Option<Vec<&str>> = if cli.all {
+        Some(cli::all_cpu_flags())
+    } else {
+        config.flags.cpu_flag_refs()
+    };
+    if let Some(cpu_flags) = cpu_flags {
         get_cpu_stats(
             context.system,
             context.components,
-            &cli::all_cpu_flags(),
+            &cpu_flags,
             cli.no_units,
             buf,
         );
-        get_disk_stats(context.disks, &cli::all_disk_flags(), cli.no_units, buf);
-        get_memory_stats(context.system, &cli::all_memory_flags(), cli.no_units, buf);
-        get_network_stats(context.networks, None, cli.interval, cli.no_units, buf);
-        get_uptime_stats(&cli::all_uptime_flags(), buf);
+    }
+
+    let disk_flags: Option<Vec<&str>> = if cli.all {
+        Some(cli::all_disk_flags())
     } else {
-        if let Some(battery_flag_refs) = config.flags.battery_flag_refs() {
-            get_battery_stats(&battery_flag_refs, cli.no_units, buf);
-        }
+        config.flags.disk_flag_refs()
+    };
+    if let Some(disk_flags) = disk_flags {
+        get_disk_stats(context.disks, &disk_flags, cli.no_units, buf);
+    }
 
-        if let Some(cpu_flag_refs) = config.flags.cpu_flag_refs() {
-            get_cpu_stats(
-                context.system,
-                context.components,
-                &cpu_flag_refs,
-                cli.no_units,
-                buf,
-            );
-        }
+    let memory_flags: Option<Vec<&str>> = if cli.all {
+        Some(cli::all_memory_flags())
+    } else {
+        config.flags.memory_flag_refs()
+    };
+    if let Some(memory_flags) = memory_flags {
+        get_memory_stats(context.system, &memory_flags, cli.no_units, buf);
+    }
 
-        if let Some(disk_flag_refs) = config.flags.disk_flag_refs() {
-            get_disk_stats(context.disks, &disk_flag_refs, cli.no_units, buf);
-        }
+    let network_interfaces: Option<&[String]> = if cli.all {
+        None
+    } else {
+        config.flags.network_flags
+    };
+    if cli.all || network_interfaces.is_some() {
+        get_network_stats(
+            context.networks,
+            network_interfaces,
+            &mut context.network_baselines,
+            cli.no_units,
+            buf,
+        );
+    }
 
-        if let Some(memory_flag_refs) = config.flags.memory_flag_refs() {
-            get_memory_stats(context.system, &memory_flag_refs, cli.no_units, buf);
-        }
-
-        if let Some(network_flags) = config.flags.network_flags {
-            get_network_stats(
-                context.networks,
-                Some(network_flags),
-                cli.interval,
-                cli.no_units,
-                buf,
-            );
-        }
-
-        if let Some(uptime_flag_refs) = config.flags.uptime_flag_refs() {
-            get_uptime_stats(&uptime_flag_refs, buf);
-        }
+    let uptime_flags: Option<Vec<&str>> = if cli.all {
+        Some(cli::all_uptime_flags())
+    } else {
+        config.flags.uptime_flag_refs()
+    };
+    if let Some(uptime_flags) = uptime_flags {
+        get_uptime_stats(&uptime_flags, buf);
     }
 
     Ok(updated_tick)
@@ -292,7 +310,10 @@ async fn main() -> Result<()> {
 
     let _lock = match acquire_lock() {
         Some(lock) => lock,
-        None => return Ok(()),
+        None => {
+            eprintln!("another stats_provider instance is already running; exiting");
+            return Ok(());
+        }
     };
 
     cli::validate_cli(&cli).context("Invalid CLI arguments")?;

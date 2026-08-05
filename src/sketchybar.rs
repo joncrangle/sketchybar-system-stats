@@ -104,7 +104,7 @@ impl Sketchybar {
         if verbose {
             println!(
                 "Successfully sent to SketchyBar: (Bar: {}): --{} {} {}",
-                self.bar_name.to_str().unwrap(),
+                self.bar_name.to_str().unwrap_or("?"),
                 flag,
                 event,
                 payload.unwrap_or_default()

@@ -1,8 +1,7 @@
+use super::{BYTES_PER_GB, PERCENT, unit};
 use crate::cli;
 use std::fmt::Write;
 use sysinfo::System;
-
-const BYTES_PER_GB: f32 = 1_073_741_824.0;
 
 pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut String) {
     let ram_flag_present = flags
@@ -16,7 +15,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
         let ram_total = s.total_memory();
         let ram_used = s.used_memory();
         let ram_usage_percentage = if ram_total > 0 {
-            ((ram_used as f32 / ram_total as f32) * 100.0).round() as u32
+            ((ram_used as f32 / ram_total as f32) * PERCENT).round() as u32
         } else {
             0
         };
@@ -28,7 +27,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
         let swp_total = s.total_swap();
         let swp_used = s.used_swap();
         let swp_usage_percentage = if swp_total > 0 {
-            ((swp_used as f32 / swp_total as f32) * 100.0).round() as u32
+            ((swp_used as f32 / swp_total as f32) * PERCENT).round() as u32
         } else {
             0
         };
@@ -40,7 +39,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
     for &flag in flags {
         match flag {
             "ram_available" => {
-                let unit = if no_units { "" } else { "GB" };
+                let unit = unit(no_units, "GB");
                 let _ = write!(
                     buf,
                     "RAM_AVAILABLE=\"{:.1}{unit}\" ",
@@ -48,7 +47,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
                 );
             }
             "ram_total" => {
-                let unit = if no_units { "" } else { "GB" };
+                let unit = unit(no_units, "GB");
                 let _ = write!(
                     buf,
                     "RAM_TOTAL=\"{:.1}{unit}\" ",
@@ -56,7 +55,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
                 );
             }
             "ram_used" => {
-                let unit = if no_units { "" } else { "GB" };
+                let unit = unit(no_units, "GB");
                 let _ = write!(
                     buf,
                     "RAM_USED=\"{:.1}{unit}\" ",
@@ -64,11 +63,11 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
                 );
             }
             "ram_usage" => {
-                let unit = if no_units { "" } else { "%" };
+                let unit = unit(no_units, "%");
                 let _ = write!(buf, "RAM_USAGE=\"{ram_usage_percentage}{unit}\" ");
             }
             "swp_free" => {
-                let unit = if no_units { "" } else { "GB" };
+                let unit = unit(no_units, "GB");
                 let _ = write!(
                     buf,
                     "SWP_FREE=\"{:.1}{unit}\" ",
@@ -76,7 +75,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
                 );
             }
             "swp_total" => {
-                let unit = if no_units { "" } else { "GB" };
+                let unit = unit(no_units, "GB");
                 let _ = write!(
                     buf,
                     "SWP_TOTAL=\"{:.1}{unit}\" ",
@@ -84,7 +83,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
                 );
             }
             "swp_used" => {
-                let unit = if no_units { "" } else { "GB" };
+                let unit = unit(no_units, "GB");
                 let _ = write!(
                     buf,
                     "SWP_USED=\"{:.1}{unit}\" ",
@@ -92,7 +91,7 @@ pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut St
                 );
             }
             "swp_usage" => {
-                let unit = if no_units { "" } else { "%" };
+                let unit = unit(no_units, "%");
                 let _ = write!(buf, "SWP_USAGE=\"{swp_usage_percentage}{unit}\" ");
             }
             _ => {}

@@ -27,7 +27,7 @@ pub struct Cli {
     #[arg(short = 'm', long, num_args = 1.., value_parser = all_memory_flags(), help = "Get memory stats")]
     pub memory: Option<Vec<String>>,
 
-    #[arg(short = 'n', long, num_args = 1.., help = "Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.")]
+    #[arg(short = 'n', long, num_args = 1.., help = "Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.")]
     pub network: Option<Vec<String>>,
 
     #[arg(short = 's', long, num_args = 1.., value_parser = all_system_flags(), help = "Get system stats")]

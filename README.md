@@ -57,7 +57,7 @@ Options:
   -c, --cpu <CPU>...                               Get CPU stats [possible values: count, frequency, temperature, usage]
   -d, --disk <DISK>...                             Get disk stats [possible values: count, free, total, usage, used]
   -m, --memory <MEMORY>...                         Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
-  -n, --network <NETWORK>...                       Network rx/tx in KB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
+  -n, --network <NETWORK>...                       Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
   -s, --system <SYSTEM>...                         Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
   -u, --uptime <UPTIME>...                         Get uptime stats [possible values: week, day, hour, min, sec]
   -i, --interval <INTERVAL>                        Refresh interval in seconds [default: 5]
@@ -107,7 +107,7 @@ Units are automatically sorted from largest to smallest, with intelligent carry-
 
 ### Output Format
 
-By default, all numeric values include their units (MHz, °C, %, GB, KB/s). You can output raw numeric values without units using the `--no-units` flag:
+By default, all numeric values include their units (MHz, °C, %, GB, KiB/s). You can output raw numeric values without units using the `--no-units` flag:
 
 ```bash
 # With units (default)
@@ -178,8 +178,8 @@ Environment variables that can be provided by the `system_stats` event
 | `DISTRO`                 | System distribution                       |
 | `HOST_NAME`              | System host name                          |
 | `KERNEL_VERSION`         | System kernel version                     |
-| `NETWORK_RX_{INTERFACE}` | Received KB/s from specified interface    |
-| `NETWORK_TX_{INTERFACE}` | Transmitted KB/s from specified interface |
+| `NETWORK_RX_{INTERFACE}` | Received KiB/s from specified interface   |
+| `NETWORK_TX_{INTERFACE}` | Transmitted KiB/s from specified interface |
 | `OS_VERSION`             | System OS version                         |
 | `LONG_OS_VERSION`        | System long OS version                    |
 | `RAM_TOTAL`              | Total memory GB                           |
