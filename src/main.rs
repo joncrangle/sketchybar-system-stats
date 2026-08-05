@@ -102,7 +102,7 @@ async fn send_initial_system_stats(
         system.refresh_specifics(*refresh_kind);
         let system_flags = match &cli.system {
             Some(flags) => flags.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
-            None => cli::all_system_flags(),
+            None => cli::ALL_SYSTEM_FLAGS.to_vec(),
         };
         buf.clear();
         get_system_stats(&system_flags, buf);
@@ -229,7 +229,7 @@ fn collect_stats_commands(
     }
 
     let battery_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::all_battery_flags())
+        Some(cli::ALL_BATTERY_FLAGS.to_vec())
     } else {
         config.flags.battery_flag_refs()
     };
@@ -238,7 +238,7 @@ fn collect_stats_commands(
     }
 
     let cpu_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::all_cpu_flags())
+        Some(cli::ALL_CPU_FLAGS.to_vec())
     } else {
         config.flags.cpu_flag_refs()
     };
@@ -253,7 +253,7 @@ fn collect_stats_commands(
     }
 
     let disk_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::all_disk_flags())
+        Some(cli::ALL_DISK_FLAGS.to_vec())
     } else {
         config.flags.disk_flag_refs()
     };
@@ -262,7 +262,7 @@ fn collect_stats_commands(
     }
 
     let memory_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::all_memory_flags())
+        Some(cli::ALL_MEMORY_FLAGS.to_vec())
     } else {
         config.flags.memory_flag_refs()
     };
@@ -286,7 +286,7 @@ fn collect_stats_commands(
     }
 
     let uptime_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::all_uptime_flags())
+        Some(cli::ALL_UPTIME_FLAGS.to_vec())
     } else {
         config.flags.uptime_flag_refs()
     };

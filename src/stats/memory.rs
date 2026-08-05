@@ -4,12 +4,8 @@ use std::fmt::Write;
 use sysinfo::System;
 
 pub fn get_memory_stats(s: &System, flags: &[&str], no_units: bool, buf: &mut String) {
-    let ram_flag_present = flags
-        .iter()
-        .any(|&flag| cli::all_ram_flags().contains(&flag));
-    let swp_flag_present = flags
-        .iter()
-        .any(|&flag| cli::all_swp_flags().contains(&flag));
+    let ram_flag_present = flags.iter().any(|&flag| cli::ALL_RAM_FLAGS.contains(&flag));
+    let swp_flag_present = flags.iter().any(|&flag| cli::ALL_SWP_FLAGS.contains(&flag));
 
     let (ram_total, ram_used, ram_usage_percentage) = if ram_flag_present {
         let ram_total = s.total_memory();
