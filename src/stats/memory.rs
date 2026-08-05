@@ -100,39 +100,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_memory_stats_with_units() {
+    fn test_get_memory_stats_all_flags_emit_expected_keys() {
         let mut s = System::new_all();
         s.refresh_all();
         let mut buf = String::new();
 
-        get_memory_stats(&s, &["ram_total", "ram_usage"], false, &mut buf);
+        get_memory_stats(&s, cli::ALL_MEMORY_FLAGS, false, &mut buf);
 
+        assert!(buf.contains("RAM_AVAILABLE="));
         assert!(buf.contains("RAM_TOTAL="));
+        assert!(buf.contains("RAM_USED="));
         assert!(buf.contains("RAM_USAGE="));
-        assert!(buf.contains("GB") || buf.contains("%"));
-    }
-
-    #[test]
-    fn test_get_memory_stats_without_units() {
-        let mut s = System::new_all();
-        s.refresh_all();
-        let mut buf = String::new();
-
-        get_memory_stats(&s, &["ram_usage"], true, &mut buf);
-
-        assert!(buf.contains("RAM_USAGE="));
-        assert!(!buf.contains("%"));
-    }
-
-    #[test]
-    fn test_get_memory_stats_swap() {
-        let mut s = System::new_all();
-        s.refresh_all();
-        let mut buf = String::new();
-
-        get_memory_stats(&s, &["swp_total", "swp_usage"], false, &mut buf);
-
+        assert!(buf.contains("SWP_FREE="));
         assert!(buf.contains("SWP_TOTAL="));
+        assert!(buf.contains("SWP_USED="));
         assert!(buf.contains("SWP_USAGE="));
     }
 

@@ -401,4 +401,14 @@ mod tests {
         assert!(flags.memory_flag_refs().is_none());
         assert!(flags.uptime_flag_refs().is_none());
     }
+
+    #[test]
+    fn test_validate_network_interfaces_rejects_unknown() {
+        let networks = Networks::new_with_refreshed_list();
+        let requested = vec!["definitely-not-an-interface-xyz".to_string()];
+
+        let result = validate_network_interfaces(&networks, &requested, false);
+
+        assert!(result.is_err());
+    }
 }

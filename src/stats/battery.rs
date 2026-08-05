@@ -65,7 +65,19 @@ mod tests {
         get_battery_stats(&["percentage", "state"], false, &mut buf);
 
         if !buf.is_empty() {
-            assert!(buf.contains("BATTERY_PERCENTAGE=") || buf.contains("BATTERY_STATE="));
+            assert!(buf.contains("BATTERY_PERCENTAGE="));
+            assert!(buf.contains("BATTERY_STATE="));
+            let value_start = buf
+                .find("BATTERY_PERCENTAGE=\"")
+                .expect("percentage key present")
+                + "BATTERY_PERCENTAGE=\"".len();
+            assert!(
+                buf[value_start..]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_digit()),
+                "percentage value must be numeric"
+            );
         }
     }
 

@@ -46,3 +46,25 @@ pub fn get_system_stats(flags: &[&str], buf: &mut String) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_system_stats_all_flags_emit_expected_keys() {
+        use crate::cli;
+
+        let mut buf = String::new();
+
+        get_system_stats(cli::ALL_SYSTEM_FLAGS, &mut buf);
+
+        assert!(buf.contains("ARCH="));
+        assert!(buf.contains("DISTRO="));
+        assert!(buf.contains("HOST_NAME="));
+        assert!(buf.contains("KERNEL_VERSION="));
+        assert!(buf.contains("SYSTEM_NAME="));
+        assert!(buf.contains(" OS_VERSION=\""));
+        assert!(buf.contains("LONG_OS_VERSION="));
+    }
+}

@@ -74,30 +74,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_cpu_stats_with_units() {
+    fn test_get_cpu_stats_all_flags_emit_expected_keys() {
+        use crate::cli;
+
         let mut s = System::new_all();
         s.refresh_all();
         let components = Components::new_with_refreshed_list();
         let mut buf = String::new();
 
-        get_cpu_stats(&s, &components, &["count", "usage"], false, &mut buf);
+        get_cpu_stats(&s, &components, cli::ALL_CPU_FLAGS, false, &mut buf);
 
         assert!(buf.contains("CPU_COUNT="));
+        assert!(buf.contains("CPU_FREQUENCY="));
+        assert!(buf.contains("CPU_TEMP="));
         assert!(buf.contains("CPU_USAGE="));
         assert!(buf.contains("%"));
-    }
 
-    #[test]
-    fn test_get_cpu_stats_without_units() {
-        let mut s = System::new_all();
-        s.refresh_all();
-        let components = Components::new_with_refreshed_list();
-        let mut buf = String::new();
+        let mut no_units_buf = String::new();
+        get_cpu_stats(&s, &components, cli::ALL_CPU_FLAGS, true, &mut no_units_buf);
 
-        get_cpu_stats(&s, &components, &["usage"], true, &mut buf);
-
-        assert!(buf.contains("CPU_USAGE="));
-        assert!(!buf.contains("%"));
+        assert!(no_units_buf.contains("CPU_USAGE="));
+        assert!(!no_units_buf.contains("%"));
+        assert!(!no_units_buf.contains("MHz"));
+        assert!(!no_units_buf.contains("°C"));
     }
 
     #[test]
