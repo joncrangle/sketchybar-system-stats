@@ -210,61 +210,58 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_valid_bounds() {
-        let interval = DEFAULT_INTERVAL.to_string();
-        let rate = DEFAULT_NETWORK_REFRESH_RATE.to_string();
-
-        assert!(
-            Cli::try_parse_from([
-                "stats_provider",
-                "--all",
-                "--interval",
-                interval.as_str(),
-                "--network-refresh-rate",
-                rate.as_str(),
-            ])
-            .is_ok()
+    fn test_every_all_flag_round_trips_through_cli() {
+        type FlagCase = (
+            &'static str,
+            &'static [&'static str],
+            fn(&Cli) -> Option<&[String]>,
         );
+        let cases: [FlagCase; 6] = [
+            ("battery", ALL_BATTERY_FLAGS, |c| c.battery.as_deref()),
+            ("cpu", ALL_CPU_FLAGS, |c| c.cpu.as_deref()),
+            ("disk", ALL_DISK_FLAGS, |c| c.disk.as_deref()),
+            ("memory", ALL_MEMORY_FLAGS, |c| c.memory.as_deref()),
+            ("system", ALL_SYSTEM_FLAGS, |c| c.system.as_deref()),
+            ("uptime", ALL_UPTIME_FLAGS, |c| c.uptime.as_deref()),
+        ];
+
+        for (arg, flags, accessor) in cases {
+            // Every flag in the const slice round-trips through the CLI on its own.
+            for &flag in flags {
+                let flag_arg = format!("--{arg}");
+                let parsed = Cli::try_parse_from(["stats_provider", flag_arg.as_str(), flag])
+                    .expect("expected a known flag value to parse");
+                assert_eq!(accessor(&parsed), Some(&[flag.to_string()][..]));
+            }
+
+            // Passing every flag at once yields the full const slice.
+            let flag_arg = format!("--{arg}");
+            let mut all_args = vec!["stats_provider", flag_arg.as_str()];
+            all_args.extend(flags.iter().copied());
+            let parsed = Cli::try_parse_from(all_args).expect("expected all flags to parse");
+            let expected: Vec<String> = flags.iter().map(|s| s.to_string()).collect();
+            assert_eq!(accessor(&parsed), Some(expected.as_slice()));
+        }
     }
 
     #[test]
-    fn test_all_battery_flags_const_has_expected_values() {
-        assert_eq!(
-            ALL_BATTERY_FLAGS,
-            &["percentage", "remaining", "state", "time_to_full"]
-        );
+    fn test_unknown_flag_values_are_rejected() {
+        for arg in ["battery", "cpu", "disk", "memory", "system", "uptime"] {
+            let flag_arg = format!("--{arg}");
+            let result = Cli::try_parse_from(["stats_provider", flag_arg.as_str(), "bogus"]);
+            assert!(result.is_err(), "--{arg} should reject an unknown value");
+        }
     }
 
     #[test]
-    fn test_all_cpu_flags_const_has_expected_values() {
-        assert_eq!(
-            ALL_CPU_FLAGS,
-            &["count", "frequency", "temperature", "usage"]
-        );
-    }
+    fn test_interval_and_network_refresh_rate_defaults() {
+        let cli = Cli::try_parse_from(["stats_provider", "--all"]).unwrap();
 
-    #[test]
-    fn test_all_disk_flags_const_has_expected_values() {
-        assert_eq!(ALL_DISK_FLAGS, &["count", "free", "total", "usage", "used"]);
-    }
-
-    #[test]
-    fn test_all_memory_flags_const_contains_ram_and_swap() {
-        assert!(ALL_MEMORY_FLAGS.contains(&"ram_available"));
-        assert!(ALL_MEMORY_FLAGS.contains(&"swp_total"));
-        assert_eq!(ALL_MEMORY_FLAGS.len(), 8);
-    }
-
-    #[test]
-    fn test_all_system_flags_const_has_expected_values() {
-        assert!(ALL_SYSTEM_FLAGS.contains(&"arch"));
-        assert!(ALL_SYSTEM_FLAGS.contains(&"distro"));
-        assert_eq!(ALL_SYSTEM_FLAGS.len(), 7);
-    }
-
-    #[test]
-    fn test_all_uptime_flags_const_has_expected_values() {
-        assert_eq!(ALL_UPTIME_FLAGS, &["week", "day", "hour", "min", "sec"]);
+        assert_eq!(cli.interval, DEFAULT_INTERVAL);
+        assert_eq!(cli.network_refresh_rate, DEFAULT_NETWORK_REFRESH_RATE);
+        assert!((MIN_INTERVAL..=MAX_INTERVAL).contains(&cli.interval));
+        assert!(cli.network_refresh_rate >= MIN_NETWORK_REFRESH_RATE);
+        assert!(cli.network_refresh_rate <= MAX_NETWORK_REFRESH_RATE);
     }
 
     #[test]

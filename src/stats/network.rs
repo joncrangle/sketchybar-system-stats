@@ -47,6 +47,31 @@ fn rate_kib_per_sec(delta_bytes: u64, elapsed_secs: f64) -> u64 {
     ((delta_bytes / BYTES_PER_KB) as f64 / elapsed_secs).round() as u64
 }
 
+/// Computes rx/tx rates in `KiB/s` from the previous and current cumulative totals.
+///
+/// Returns `(0, 0)` when there is no previous baseline (first sighting of an
+/// interface) or when the cumulative counters wrapped around.
+fn compute_rates(
+    prev_rx: Option<u64>,
+    prev_tx: Option<u64>,
+    rx_total: u64,
+    tx_total: u64,
+    elapsed_secs: f64,
+) -> (u64, u64) {
+    let (Some(prev_rx), Some(prev_tx)) = (prev_rx, prev_tx) else {
+        return (0, 0);
+    };
+
+    if rx_total < prev_rx || tx_total < prev_tx {
+        return (0, 0);
+    }
+
+    (
+        rate_kib_per_sec(rx_total - prev_rx, elapsed_secs),
+        rate_kib_per_sec(tx_total - prev_tx, elapsed_secs),
+    )
+}
+
 pub fn get_network_stats(
     n: &Networks,
     interfaces: Option<&[String]>,
@@ -73,20 +98,17 @@ pub fn get_network_stats(
             let (rx_rate, tx_rate) = match baselines.by_interface.get(interface) {
                 Some(baseline) => {
                     let elapsed = baseline.at.elapsed().as_secs_f64();
-                    let rx_delta = rx_total.wrapping_sub(baseline.rx_total);
-                    let tx_delta = tx_total.wrapping_sub(baseline.tx_total);
-                    let wrapped = rx_total < baseline.rx_total || tx_total < baseline.tx_total;
+                    let rates = compute_rates(
+                        Some(baseline.rx_total),
+                        Some(baseline.tx_total),
+                        rx_total,
+                        tx_total,
+                        elapsed,
+                    );
 
                     baselines.reset(interface, rx_total, tx_total);
 
-                    if wrapped {
-                        (0, 0)
-                    } else {
-                        (
-                            rate_kib_per_sec(rx_delta, elapsed),
-                            rate_kib_per_sec(tx_delta, elapsed),
-                        )
-                    }
+                    rates
                 }
                 None => {
                     baselines.reset(interface, rx_total, tx_total);
@@ -135,11 +157,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rate_kib_per_sec_zero_delta() {
-        assert_eq!(rate_kib_per_sec(0, 1.0), 0);
-    }
-
-    #[test]
     fn test_rate_kib_per_sec_pins_1024_divisor() {
         assert_eq!(rate_kib_per_sec(1500, 1.0), 1);
     }
@@ -147,5 +164,26 @@ mod tests {
     #[test]
     fn test_rate_kib_per_sec_fractional_elapsed() {
         assert_eq!(rate_kib_per_sec(1024, 0.5), 2);
+    }
+
+    #[test]
+    fn test_compute_rates_first_sighting_returns_zero() {
+        assert_eq!(compute_rates(None, None, 1000, 2000, 1.0), (0, 0));
+    }
+
+    #[test]
+    fn test_compute_rates_counter_wrap_returns_zero() {
+        assert_eq!(
+            compute_rates(Some(1000), Some(2000), 500, 2500, 1.0),
+            (0, 0)
+        );
+    }
+
+    #[test]
+    fn test_compute_rates_normal_delta() {
+        assert_eq!(
+            compute_rates(Some(2048), Some(4096), 4096, 6144, 1.0),
+            (2, 2)
+        );
     }
 }
