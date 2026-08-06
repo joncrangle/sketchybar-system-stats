@@ -297,8 +297,13 @@ fn collect_stats_commands(
     Ok(updated_tick)
 }
 
+fn lock_file_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("stats_provider.lock")
+}
+
 fn acquire_lock() -> Option<File> {
-    let file = File::create("/tmp/stats_provider.lock").ok()?;
+    let path = lock_file_path();
+    let file = File::create(path).ok()?;
     file.try_lock_exclusive().ok()?;
     Some(file)
 }
@@ -338,6 +343,19 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_acquire_lock_prevents_second_instance() {
+        // Host-state-independent: passes whether or not a real instance already
+        // holds the lock, but fails if exclusive locking is removed (both opens
+        // would then succeed).
+        let first = acquire_lock();
+        let second = acquire_lock();
+        assert!(
+            !(first.is_some() && second.is_some()),
+            "two concurrent instances should never both acquire the lock"
+        );
+    }
 
     #[test]
     fn test_process_cli_flags() {
