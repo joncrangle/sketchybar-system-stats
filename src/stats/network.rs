@@ -30,6 +30,12 @@ impl NetworkRateBaselines {
             },
         );
     }
+
+    /// Retains only baselines for interfaces that are currently active.
+    pub fn retain_active(&mut self, active_interfaces: &[&str]) {
+        self.by_interface
+            .retain(|interface, _| active_interfaces.contains(&interface.as_str()));
+    }
 }
 
 fn network_key_suffix(interface: &str) -> String {
@@ -44,7 +50,7 @@ fn rate_kib_per_sec(delta_bytes: u64, elapsed_secs: f64) -> u64 {
     if elapsed_secs <= 0.0 {
         return 0;
     }
-    ((delta_bytes / BYTES_PER_KB) as f64 / elapsed_secs).round() as u64
+    ((delta_bytes as f64 / BYTES_PER_KB as f64) / elapsed_secs).round() as u64
 }
 
 /// Computes rx/tx rates in `KiB/s` from the previous and current cumulative totals.
@@ -79,12 +85,12 @@ pub fn get_network_stats(
     no_units: bool,
     buf: &mut String,
 ) {
+    let active_interfaces: Vec<&str> = n.keys().map(|k| k.as_str()).collect();
+    baselines.retain_active(&active_interfaces);
+
     let interfaces_to_check: Vec<&str> = match interfaces {
         Some(ifaces) => ifaces.iter().map(String::as_str).collect(),
-        None => n
-            .keys()
-            .map(|interface_name| interface_name.as_str())
-            .collect(),
+        None => active_interfaces,
     };
 
     let unit = unit(no_units, "KiB/s");
@@ -162,8 +168,21 @@ mod tests {
     }
 
     #[test]
-    fn test_rate_kib_per_sec_fractional_elapsed() {
-        assert_eq!(rate_kib_per_sec(1024, 0.5), 2);
+    fn test_rate_kib_per_sec_fractional_sub_kib_rate() {
+        // 1000 bytes over 0.5s = 2000 B/s = 1.953 KiB/s -> rounds to 2 (would fail with integer div)
+        assert_eq!(rate_kib_per_sec(1000, 0.5), 2);
+    }
+
+    #[test]
+    fn test_network_baselines_retain_active() {
+        let mut baselines = NetworkRateBaselines::default();
+        baselines.reset("en0", 100, 100);
+        baselines.reset("utun0", 200, 200);
+
+        baselines.retain_active(&["en0"]);
+
+        assert!(baselines.by_interface.contains_key("en0"));
+        assert!(!baselines.by_interface.contains_key("utun0"));
     }
 
     #[test]
