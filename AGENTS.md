@@ -20,5 +20,5 @@
 - Modular structure: `src/` contains `main.rs`, `cli.rs`, `sketchybar.rs`, and `stats/` module
 - Stats module: Individual stat files (`cpu.rs`, `disk.rs`, etc.) with public functions exported via `mod.rs`
 - CLI: `clap` with `Parser` derive, validation in separate `validate_cli()` function, constants for defaults/limits
-- Async runtime: `tokio::main` macro, `tokio::select!` for concurrent operations, `tokio::time::sleep` for intervals
+- Async runtime: `tokio::main` macro, `tokio::select!` for concurrent operations, `tokio::time::interval` with skipped missed ticks for periodic work
 - Platform: macOS only - use `#[cfg(target_os = "macos")]` for platform-specific code

@@ -128,7 +128,7 @@ char *sketchybar(const char *message, const char *bar_name) {
   }
 
   uint32_t message_length = strlen(message) + 1;
-  char *formatted_message = (char *)malloc(message_length + 1);
+  char *formatted_message = (char *)calloc(message_length + 1, sizeof(char));
   if (!formatted_message) {
     return strdup("");
   }
@@ -149,8 +149,8 @@ char *sketchybar(const char *message, const char *bar_name) {
     caret++;
   }
 
-  if (caret > 0 && formatted_message[caret] == '\0' &&
-      formatted_message[caret - 1] == '\0') {
+  if (caret >= 2 && formatted_message[caret - 1] == '\0' &&
+      formatted_message[caret - 2] == '\0') {
     caret--;
   }
 

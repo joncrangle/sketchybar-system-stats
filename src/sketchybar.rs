@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr::NonNull;
-use std::sync::Once;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant};
 
@@ -16,8 +15,6 @@ unsafe extern "C" {
     fn cleanup_sketchybar();
     fn refresh_sketchybar_port(bar_name: *const c_char) -> bool;
 }
-
-static CLEANUP: Once = Once::new();
 
 struct SketchybarResponse {
     ptr: NonNull<c_char>,
@@ -45,6 +42,13 @@ impl Drop for SketchybarResponse {
 struct PortState {
     last_refresh: Instant,
     refresh_interval: Duration,
+}
+
+fn format_sketchybar_message(flag: &str, event: &str, payload: Option<&str>) -> String {
+    match payload.map(str::trim).filter(|p| !p.is_empty()) {
+        Some(p) => format!("--{flag} {event} {p}"),
+        None => format!("--{flag} {event}"),
+    }
 }
 
 pub struct Sketchybar {
@@ -86,8 +90,9 @@ impl Sketchybar {
     ) -> Result<String> {
         self.maybe_refresh_port().await?;
 
-        let message = format!("--{} {} {}", flag, event, payload.unwrap_or_default());
-        let c_message = CString::new(message).context("Failed to create CString for message")?;
+        let message = format_sketchybar_message(flag, event, payload);
+        let c_message =
+            CString::new(message.as_str()).context("Failed to create CString for message")?;
 
         let response = SketchybarResponse::new(unsafe {
             sketchybar(c_message.as_ptr(), self.bar_name.as_ptr())
@@ -103,11 +108,9 @@ impl Sketchybar {
 
         if verbose {
             println!(
-                "Successfully sent to SketchyBar: (Bar: {}): --{} {} {}",
+                "Successfully sent to SketchyBar: (Bar: {}): {}",
                 self.bar_name.to_str().unwrap_or("?"),
-                flag,
-                event,
-                payload.unwrap_or_default()
+                message
             );
         }
 
@@ -117,8 +120,41 @@ impl Sketchybar {
 
 impl Drop for Sketchybar {
     fn drop(&mut self) {
-        CLEANUP.call_once(|| unsafe {
+        unsafe {
             cleanup_sketchybar();
-        });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_sketchybar_message_none_payload() {
+        assert_eq!(
+            format_sketchybar_message("add event", "system_stats", None),
+            "--add event system_stats"
+        );
+    }
+
+    #[test]
+    fn test_format_sketchybar_message_empty_payload() {
+        assert_eq!(
+            format_sketchybar_message("add event", "system_stats", Some("")),
+            "--add event system_stats"
+        );
+        assert_eq!(
+            format_sketchybar_message("add event", "system_stats", Some("   ")),
+            "--add event system_stats"
+        );
+    }
+
+    #[test]
+    fn test_format_sketchybar_message_with_payload_trims_trailing_space() {
+        assert_eq!(
+            format_sketchybar_message("trigger", "system_stats", Some("CPU_USAGE=\"5%\" ")),
+            "--trigger system_stats CPU_USAGE=\"5%\""
+        );
     }
 }

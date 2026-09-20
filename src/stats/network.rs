@@ -19,22 +19,38 @@ pub struct NetworkRateBaselines {
 }
 
 impl NetworkRateBaselines {
-    /// Resets the baseline for `interface` to the current cumulative totals.
-    fn reset(&mut self, interface: &str, rx_total: u64, tx_total: u64) {
-        self.by_interface.insert(
-            interface.to_owned(),
-            InterfaceBaseline {
-                rx_total,
-                tx_total,
-                at: Instant::now(),
-            },
-        );
+    /// Retains only baselines for interfaces that match the predicate.
+    pub fn retain_active(&mut self, mut is_active: impl FnMut(&str) -> bool) {
+        self.by_interface
+            .retain(|interface, _| is_active(interface.as_str()));
     }
 
-    /// Retains only baselines for interfaces that are currently active.
-    pub fn retain_active(&mut self, active_interfaces: &[&str]) {
-        self.by_interface
-            .retain(|interface, _| active_interfaces.contains(&interface.as_str()));
+    /// Updates the baseline for `interface` and returns the transfer rates in `(rx, tx)` KiB/s.
+    pub fn update(&mut self, interface: &str, rx_total: u64, tx_total: u64) -> (u64, u64) {
+        if let Some(baseline) = self.by_interface.get_mut(interface) {
+            let elapsed = baseline.at.elapsed().as_secs_f64();
+            let rates = compute_rates(
+                Some(baseline.rx_total),
+                Some(baseline.tx_total),
+                rx_total,
+                tx_total,
+                elapsed,
+            );
+            baseline.rx_total = rx_total;
+            baseline.tx_total = tx_total;
+            baseline.at = Instant::now();
+            rates
+        } else {
+            self.by_interface.insert(
+                interface.to_owned(),
+                InterfaceBaseline {
+                    rx_total,
+                    tx_total,
+                    at: Instant::now(),
+                },
+            );
+            (0, 0)
+        }
     }
 }
 
@@ -47,7 +63,7 @@ fn network_key_suffix(interface: &str) -> String {
 
 /// Converts a byte delta and the elapsed time into a rate in `KiB/s`.
 fn rate_kib_per_sec(delta_bytes: u64, elapsed_secs: f64) -> u64 {
-    if elapsed_secs <= 0.0 {
+    if elapsed_secs <= 0.0 || !elapsed_secs.is_finite() {
         return 0;
     }
     ((delta_bytes as f64 / BYTES_PER_KB as f64) / elapsed_secs).round() as u64
@@ -85,48 +101,35 @@ pub fn get_network_stats(
     no_units: bool,
     buf: &mut String,
 ) {
-    let active_interfaces: Vec<&str> = n.keys().map(|k| k.as_str()).collect();
-    baselines.retain_active(&active_interfaces);
-
-    let interfaces_to_check: Vec<&str> = match interfaces {
-        Some(ifaces) => ifaces.iter().map(String::as_str).collect(),
-        None => active_interfaces,
-    };
+    baselines.retain_active(|iface| n.get(iface).is_some());
 
     let unit = unit(no_units, "KiB/s");
 
-    for interface in interfaces_to_check {
-        if let Some(data) = n.get(interface) {
-            let key_suffix = network_key_suffix(interface);
-            let rx_total = data.total_received();
-            let tx_total = data.total_transmitted();
+    let mut emit_stat = |interface: &str, data: &sysinfo::NetworkData| {
+        let key_suffix = network_key_suffix(interface);
+        let rx_total = data.total_received();
+        let tx_total = data.total_transmitted();
+        let (rx_rate, tx_rate) = baselines.update(interface, rx_total, tx_total);
 
-            let (rx_rate, tx_rate) = match baselines.by_interface.get(interface) {
-                Some(baseline) => {
-                    let elapsed = baseline.at.elapsed().as_secs_f64();
-                    let rates = compute_rates(
-                        Some(baseline.rx_total),
-                        Some(baseline.tx_total),
-                        rx_total,
-                        tx_total,
-                        elapsed,
-                    );
+        let _ = write!(
+            buf,
+            "NETWORK_RX_{}=\"{rx_rate}{unit}\" NETWORK_TX_{}=\"{tx_rate}{unit}\" ",
+            key_suffix, key_suffix
+        );
+    };
 
-                    baselines.reset(interface, rx_total, tx_total);
-
-                    rates
+    match interfaces {
+        Some(ifaces) => {
+            for interface in ifaces {
+                if let Some(data) = n.get(interface.as_str()) {
+                    emit_stat(interface, data);
                 }
-                None => {
-                    baselines.reset(interface, rx_total, tx_total);
-                    (0, 0)
-                }
-            };
-
-            let _ = write!(
-                buf,
-                "NETWORK_RX_{}=\"{rx_rate}{unit}\" NETWORK_TX_{}=\"{tx_rate}{unit}\" ",
-                key_suffix, key_suffix
-            );
+            }
+        }
+        None => {
+            for (interface, data) in n {
+                emit_stat(interface, data);
+            }
         }
     }
 }
@@ -176,10 +179,10 @@ mod tests {
     #[test]
     fn test_network_baselines_retain_active() {
         let mut baselines = NetworkRateBaselines::default();
-        baselines.reset("en0", 100, 100);
-        baselines.reset("utun0", 200, 200);
+        baselines.update("en0", 100, 100);
+        baselines.update("utun0", 200, 200);
 
-        baselines.retain_active(&["en0"]);
+        baselines.retain_active(|iface| iface == "en0");
 
         assert!(baselines.by_interface.contains_key("en0"));
         assert!(!baselines.by_interface.contains_key("utun0"));
@@ -196,6 +199,26 @@ mod tests {
             compute_rates(Some(1000), Some(2000), 500, 2500, 1.0),
             (0, 0)
         );
+    }
+
+    #[test]
+    fn test_rate_kib_per_sec_nan_or_infinite_elapsed() {
+        assert_eq!(rate_kib_per_sec(1024, f64::NAN), 0);
+        assert_eq!(rate_kib_per_sec(1024, f64::INFINITY), 0);
+    }
+
+    #[test]
+    fn test_network_baselines_update_in_place() {
+        let mut baselines = NetworkRateBaselines::default();
+        let (rx, tx) = baselines.update("en0", 1000, 2000);
+        assert_eq!((rx, tx), (0, 0));
+        assert!(baselines.by_interface.contains_key("en0"));
+
+        if let Some(b) = baselines.by_interface.get_mut("en0") {
+            b.at = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        }
+        let (rx2, tx2) = baselines.update("en0", 1000 + 2048, 2000 + 4096);
+        assert_eq!((rx2, tx2), (2, 4));
     }
 
     #[test]

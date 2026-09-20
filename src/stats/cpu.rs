@@ -1,4 +1,4 @@
-use super::{NO_TEMP_SENTINEL, unit};
+use super::unit;
 use std::fmt::Write;
 use sysinfo::{Components, System};
 
@@ -44,16 +44,16 @@ pub fn get_cpu_stats(
                 }
 
                 let average_temp = if count > 0 {
-                    total_temp / count as f32
+                    Some(total_temp / count as f32)
                 } else {
-                    NO_TEMP_SENTINEL
+                    None
                 };
 
-                let unit = unit(no_units, "°C");
-                if average_temp != NO_TEMP_SENTINEL {
+                if let Some(average_temp) = average_temp {
+                    let unit = unit(no_units, "°C");
                     let _ = write!(buf, "CPU_TEMP=\"{average_temp:.1}{unit}\" ");
                 } else {
-                    let _ = write!(buf, "CPU_TEMP=\"N/A{unit}\" ");
+                    let _ = write!(buf, "CPU_TEMP=\"N/A\" ");
                 }
             }
             "usage" => {
@@ -109,6 +109,17 @@ mod tests {
         get_cpu_stats(&s, &components, &[], false, &mut buf);
 
         assert_eq!(buf, "");
+    }
+
+    #[test]
+    fn test_get_cpu_stats_temperature_na_has_no_unit() {
+        let s = System::new_all();
+        let components = Components::new();
+        let mut buf = String::new();
+
+        get_cpu_stats(&s, &components, &["temperature"], false, &mut buf);
+
+        assert_eq!(buf, "CPU_TEMP=\"N/A\" ");
     }
 
     #[test]
