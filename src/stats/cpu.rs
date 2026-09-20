@@ -1,6 +1,7 @@
-use super::unit;
 use std::fmt::Write;
 use sysinfo::{Components, System};
+
+use super::unit;
 
 pub fn get_cpu_stats(
     s: &System,

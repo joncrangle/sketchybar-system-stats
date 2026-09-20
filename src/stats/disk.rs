@@ -5,19 +5,16 @@ use sysinfo::Disks;
 use super::{BYTES_PER_GB, PERCENT, unit};
 
 fn apfs_container_id(disk_name: &str) -> &str {
-    if let Some(idx) = disk_name.find("disk") {
-        let after_disk = &disk_name[idx + 4..];
-        let digit_len = after_disk
-            .chars()
-            .take_while(|c| c.is_ascii_digit())
-            .count();
-        if digit_len > 0 {
-            let end_of_base = idx + 4 + digit_len;
-            if disk_name[end_of_base..].starts_with('s') {
-                return &disk_name[..end_of_base];
-            }
-        }
+    const DEVICE_PREFIX: &str = "/dev/disk";
+
+    let Some(device_suffix) = disk_name.strip_prefix(DEVICE_PREFIX) else {
+        return disk_name;
+    };
+    let digit_len = device_suffix.bytes().take_while(u8::is_ascii_digit).count();
+    if digit_len > 0 && device_suffix[digit_len..].starts_with('s') {
+        return &disk_name[..DEVICE_PREFIX.len() + digit_len];
     }
+
     disk_name
 }
 
@@ -178,9 +175,14 @@ mod tests {
     fn test_apfs_container_id_extraction() {
         assert_eq!(apfs_container_id("/dev/disk3s1s1"), "/dev/disk3");
         assert_eq!(apfs_container_id("/dev/disk3s5"), "/dev/disk3");
-        assert_eq!(apfs_container_id("disk1s2"), "disk1");
+        assert_eq!(apfs_container_id("disk1s2"), "disk1s2");
         assert_eq!(apfs_container_id("/dev/disk4"), "/dev/disk4");
         assert_eq!(apfs_container_id("custom_volume"), "custom_volume");
+        assert_eq!(
+            apfs_container_id("/Volumes/mydisk1s2"),
+            "/Volumes/mydisk1s2"
+        );
+        assert_eq!(apfs_container_id("mydisk1s2"), "mydisk1s2");
     }
 
     #[test]

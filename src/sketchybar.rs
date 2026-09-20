@@ -120,6 +120,8 @@ impl Sketchybar {
 
 impl Drop for Sketchybar {
     fn drop(&mut self) {
+        // The C cleanup is mutex-protected and idempotent. Run it for every
+        // instance so a later instance can also release a port it reacquired.
         unsafe {
             cleanup_sketchybar();
         }
