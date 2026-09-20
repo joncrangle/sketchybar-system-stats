@@ -2,7 +2,8 @@ mod cli;
 mod sketchybar;
 mod stats;
 
-use std::fs::File;
+use std::fs::{File, OpenOptions};
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use fs2::FileExt;
@@ -14,29 +15,12 @@ use stats::{
 use sysinfo::{Components, Disks, Networks, System};
 
 struct ProcessedFlags<'a> {
-    battery_flags: Option<&'a [String]>,
-    cpu_flags: Option<&'a [String]>,
-    disk_flags: Option<&'a [String]>,
-    memory_flags: Option<&'a [String]>,
+    battery_flags: Option<Vec<&'a str>>,
+    cpu_flags: Option<Vec<&'a str>>,
+    disk_flags: Option<Vec<&'a str>>,
+    memory_flags: Option<Vec<&'a str>>,
     network_flags: Option<&'a [String]>,
-    uptime_flags: Option<&'a [String]>,
-}
-
-macro_rules! flag_refs_method {
-    ($method_name:ident, $field:ident) => {
-        fn $method_name(&self) -> Option<Vec<&str>> {
-            self.$field
-                .map(|flags| flags.iter().map(String::as_str).collect())
-        }
-    };
-}
-
-impl<'a> ProcessedFlags<'a> {
-    flag_refs_method!(battery_flag_refs, battery_flags);
-    flag_refs_method!(cpu_flag_refs, cpu_flags);
-    flag_refs_method!(disk_flag_refs, disk_flags);
-    flag_refs_method!(memory_flag_refs, memory_flags);
-    flag_refs_method!(uptime_flag_refs, uptime_flags);
+    uptime_flags: Option<Vec<&'a str>>,
 }
 
 struct StatsContext<'a> {
@@ -52,14 +36,18 @@ struct StatsConfig<'a> {
     refresh_kind: sysinfo::RefreshKind,
 }
 
+fn to_str_refs(flags: Option<&[String]>) -> Option<Vec<&str>> {
+    flags.map(|v| v.iter().map(String::as_str).collect())
+}
+
 fn process_cli_flags(cli: &cli::Cli) -> ProcessedFlags<'_> {
     ProcessedFlags {
-        battery_flags: cli.battery.as_deref(),
-        cpu_flags: cli.cpu.as_deref(),
-        disk_flags: cli.disk.as_deref(),
-        memory_flags: cli.memory.as_deref(),
+        battery_flags: to_str_refs(cli.battery.as_deref()),
+        cpu_flags: to_str_refs(cli.cpu.as_deref()),
+        disk_flags: to_str_refs(cli.disk.as_deref()),
+        memory_flags: to_str_refs(cli.memory.as_deref()),
         network_flags: cli.network.as_deref(),
-        uptime_flags: cli.uptime.as_deref(),
+        uptime_flags: to_str_refs(cli.uptime.as_deref()),
     }
 }
 
@@ -68,14 +56,14 @@ fn validate_network_interfaces(
     requested_interfaces: &[String],
     verbose: bool,
 ) -> Result<()> {
-    let available_interfaces: Vec<String> = networks.keys().map(|name| name.to_string()).collect();
-
-    if available_interfaces.is_empty() {
+    if networks.is_empty() {
         anyhow::bail!("No network interfaces available on this system");
     }
 
     for interface in requested_interfaces {
-        if !available_interfaces.contains(interface) {
+        if !networks.contains_key(interface.as_str()) {
+            let available_interfaces: Vec<String> =
+                networks.keys().map(|name| name.to_string()).collect();
             let msg = format!(
                 "Network interface '{}' not found. Available interfaces: {}",
                 interface,
@@ -114,6 +102,7 @@ async fn send_initial_system_stats(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let refresh_kind = stats::build_refresh_kind();
     let mut system = System::new_with_specifics(refresh_kind);
@@ -153,6 +142,7 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     run_stats_loop(cli, sketchybar, &config, &mut context, &mut message_buffer).await
 }
 
+#[cfg(target_os = "macos")]
 async fn run_stats_loop(
     cli: &cli::Cli,
     sketchybar: &Sketchybar,
@@ -161,22 +151,38 @@ async fn run_stats_loop(
     message_buffer: &mut String,
 ) -> Result<()> {
     let mut network_refresh_tick = 0;
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .context("Failed to register SIGTERM handler")?;
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(cli.interval.into()));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         tokio::select! {
-            result = collect_and_send_stats(
-                cli,
-                sketchybar,
-                config,
-                context,
-                network_refresh_tick,
-                message_buffer,
-            ) => {
-                network_refresh_tick = result?;
+            _ = ticker.tick() => {
+                match collect_and_send_stats(
+                    cli,
+                    sketchybar,
+                    config,
+                    context,
+                    network_refresh_tick,
+                    message_buffer,
+                ).await {
+                    Ok(tick) => network_refresh_tick = tick,
+                    Err(e) => {
+                        eprintln!("Warning: failed to collect/send stats: {e:#}");
+                    }
+                }
             }
             _ = tokio::signal::ctrl_c() => {
                 if cli.verbose {
-                    println!("Received shutdown signal, cleaning up...");
+                    println!("Received shutdown signal (SIGINT), cleaning up...");
+                }
+                println!("SketchyBar Stats Provider is shutting down.");
+                return Ok(());
+            }
+            _ = sigterm.recv() => {
+                if cli.verbose {
+                    println!("Received shutdown signal (SIGTERM), cleaning up...");
                 }
                 println!("SketchyBar Stats Provider is shutting down.");
                 return Ok(());
@@ -193,18 +199,29 @@ async fn collect_and_send_stats(
     network_refresh_tick: u32,
     buf: &mut String,
 ) -> Result<u32> {
-    let updated_tick = collect_stats_commands(cli, config, context, network_refresh_tick, buf)?;
+    let updated_tick = collect_stats_commands(cli, config, context, network_refresh_tick, buf);
 
     if cli.verbose {
         println!("Current message: {}", buf);
     }
     sketchybar
         .send_message("trigger", "system_stats", Some(buf), cli.verbose)
-        .await?;
-
-    tokio::time::sleep(tokio::time::Duration::from_secs(cli.interval.into())).await;
+        .await
+        .context("Failed to send stats to SketchyBar")?;
 
     Ok(updated_tick)
+}
+
+fn select_flags<'a>(
+    all: bool,
+    all_flags: &'a [&'a str],
+    configured_flags: Option<&'a [&'a str]>,
+) -> Option<&'a [&'a str]> {
+    if all {
+        Some(all_flags)
+    } else {
+        configured_flags
+    }
 }
 
 fn collect_stats_commands(
@@ -213,7 +230,7 @@ fn collect_stats_commands(
     context: &mut StatsContext<'_>,
     network_refresh_tick: u32,
     buf: &mut String,
-) -> Result<u32> {
+) -> u32 {
     buf.clear();
 
     context.system.refresh_specifics(config.refresh_kind);
@@ -228,46 +245,46 @@ fn collect_stats_commands(
         context.networks.refresh(true);
     }
 
-    let battery_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::ALL_BATTERY_FLAGS.to_vec())
-    } else {
-        config.flags.battery_flag_refs()
-    };
+    let battery_flags = select_flags(
+        cli.all,
+        cli::ALL_BATTERY_FLAGS,
+        config.flags.battery_flags.as_deref(),
+    );
     if let Some(battery_flags) = battery_flags {
-        get_battery_stats(&battery_flags, cli.no_units, buf);
+        get_battery_stats(battery_flags, cli.no_units, buf);
     }
 
-    let cpu_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::ALL_CPU_FLAGS.to_vec())
-    } else {
-        config.flags.cpu_flag_refs()
-    };
+    let cpu_flags = select_flags(
+        cli.all,
+        cli::ALL_CPU_FLAGS,
+        config.flags.cpu_flags.as_deref(),
+    );
     if let Some(cpu_flags) = cpu_flags {
         get_cpu_stats(
             context.system,
             context.components,
-            &cpu_flags,
+            cpu_flags,
             cli.no_units,
             buf,
         );
     }
 
-    let disk_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::ALL_DISK_FLAGS.to_vec())
-    } else {
-        config.flags.disk_flag_refs()
-    };
+    let disk_flags = select_flags(
+        cli.all,
+        cli::ALL_DISK_FLAGS,
+        config.flags.disk_flags.as_deref(),
+    );
     if let Some(disk_flags) = disk_flags {
-        get_disk_stats(context.disks, &disk_flags, cli.no_units, buf);
+        get_disk_stats(context.disks, disk_flags, cli.no_units, buf);
     }
 
-    let memory_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::ALL_MEMORY_FLAGS.to_vec())
-    } else {
-        config.flags.memory_flag_refs()
-    };
+    let memory_flags = select_flags(
+        cli.all,
+        cli::ALL_MEMORY_FLAGS,
+        config.flags.memory_flags.as_deref(),
+    );
     if let Some(memory_flags) = memory_flags {
-        get_memory_stats(context.system, &memory_flags, cli.no_units, buf);
+        get_memory_stats(context.system, memory_flags, cli.no_units, buf);
     }
 
     let network_interfaces: Option<&[String]> = if cli.all {
@@ -285,43 +302,77 @@ fn collect_stats_commands(
         );
     }
 
-    let uptime_flags: Option<Vec<&str>> = if cli.all {
-        Some(cli::ALL_UPTIME_FLAGS.to_vec())
-    } else {
-        config.flags.uptime_flag_refs()
-    };
+    let uptime_flags = select_flags(
+        cli.all,
+        cli::ALL_UPTIME_FLAGS,
+        config.flags.uptime_flags.as_deref(),
+    );
     if let Some(uptime_flags) = uptime_flags {
-        get_uptime_stats(&uptime_flags, buf);
+        get_uptime_stats(uptime_flags, buf);
     }
 
-    Ok(updated_tick)
+    if buf.ends_with(' ') {
+        buf.pop();
+    }
+
+    updated_tick
 }
 
-fn lock_file_path() -> std::path::PathBuf {
-    std::env::temp_dir().join("stats_provider.lock")
+fn stable_bar_hash(bar: &str) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+
+    bar.as_bytes().iter().fold(FNV_OFFSET_BASIS, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME)
+    })
 }
 
-fn acquire_lock() -> Option<File> {
-    let path = lock_file_path();
-    let file = File::create(path).ok()?;
-    file.try_lock_exclusive().ok()?;
-    Some(file)
+fn lock_file_path(bar: Option<&str>) -> PathBuf {
+    let filename = match bar {
+        Some(name) => format!("stats_provider_{:016x}.lock", stable_bar_hash(name)),
+        None => "stats_provider.lock".to_string(),
+    };
+    std::env::temp_dir().join(filename)
+}
+
+fn acquire_lock_at(path: &Path) -> Result<Option<File>> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
+        .with_context(|| format!("Failed to open lock file {}", path.display()))?;
+
+    match file.try_lock_exclusive() {
+        Ok(()) => Ok(Some(file)),
+        Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {
+            Ok(None)
+        }
+        Err(error) => {
+            Err(error).with_context(|| format!("Failed to lock lock file {}", path.display()))
+        }
+    }
+}
+
+fn acquire_lock(bar: Option<&str>) -> Result<Option<File>> {
+    let path = lock_file_path(bar);
+    acquire_lock_at(&path)
 }
 
 #[cfg(target_os = "macos")]
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = cli::parse_args();
+    cli::validate_cli(&cli).context("Invalid CLI arguments")?;
 
-    let _lock = match acquire_lock() {
+    let _lock = match acquire_lock(cli.bar.as_deref())? {
         Some(lock) => lock,
         None => {
             eprintln!("another stats_provider instance is already running; exiting");
             return Ok(());
         }
     };
-
-    cli::validate_cli(&cli).context("Invalid CLI arguments")?;
 
     println!("SketchyBar Stats Provider is running.");
 
@@ -345,16 +396,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_acquire_lock_prevents_second_instance() {
-        // Host-state-independent: passes whether or not a real instance already
-        // holds the lock, but fails if exclusive locking is removed (both opens
-        // would then succeed).
-        let first = acquire_lock();
-        let second = acquire_lock();
-        assert!(
-            !(first.is_some() && second.is_some()),
-            "two concurrent instances should never both acquire the lock"
+    fn test_lock_file_path_distinct_for_different_bars() {
+        let default_lock = lock_file_path(None);
+        let bar1_lock = lock_file_path(Some("bar1"));
+        let bar2_lock = lock_file_path(Some("bar2"));
+
+        assert_ne!(default_lock, bar1_lock);
+        assert_ne!(bar1_lock, bar2_lock);
+        assert_eq!(bar1_lock, lock_file_path(Some("bar1")));
+    }
+
+    #[test]
+    fn test_lock_file_path_keeps_untrusted_bar_name_inside_temp_dir() {
+        let lock_path = lock_file_path(Some("../../outside/with/slashes"));
+
+        assert_eq!(lock_path.parent(), Some(std::env::temp_dir().as_path()));
+        assert_eq!(
+            lock_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap(),
+            format!(
+                "stats_provider_{:016x}.lock",
+                stable_bar_hash("../../outside/with/slashes")
+            )
         );
+    }
+
+    #[test]
+    fn test_acquire_lock_prevents_second_instance() {
+        let test_path = std::env::temp_dir().join(format!(
+            "test_stats_provider_lock_{}_{}.lock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let first = acquire_lock_at(&test_path).unwrap();
+        let second = acquire_lock_at(&test_path).unwrap();
+        assert!(first.is_some(), "first acquire on clean path must succeed");
+        assert!(second.is_none(), "second acquire on locked path must fail");
+
+        drop(first);
+        let third = acquire_lock_at(&test_path).unwrap();
+        assert!(third.is_some(), "acquire after drop must succeed");
+        drop(third);
+        let _ = std::fs::remove_file(test_path);
     }
 
     #[test]
@@ -386,21 +474,28 @@ mod tests {
     #[test]
     fn test_processed_flags_cpu_flag_refs() {
         let cpu_flags = vec!["usage".to_string(), "count".to_string()];
-        let flags = ProcessedFlags {
-            battery_flags: None,
-            cpu_flags: Some(&cpu_flags),
-            disk_flags: None,
-            memory_flags: None,
-            network_flags: None,
-            uptime_flags: None,
+        let cli = cli::Cli {
+            all: false,
+            battery: None,
+            cpu: Some(cpu_flags),
+            disk: None,
+            memory: None,
+            network: None,
+            system: None,
+            uptime: None,
+            interval: 5,
+            network_refresh_rate: 5,
+            bar: None,
+            verbose: false,
+            no_units: false,
         };
 
-        let refs = flags.cpu_flag_refs();
-        assert!(refs.is_some());
-        let refs_vec = refs.unwrap();
-        assert_eq!(refs_vec.len(), 2);
-        assert_eq!(refs_vec[0], "usage");
-        assert_eq!(refs_vec[1], "count");
+        let flags = process_cli_flags(&cli);
+        assert!(flags.cpu_flags.is_some());
+        let refs = flags.cpu_flags.as_deref().unwrap();
+        assert_eq!(refs.len(), 2);
+        assert_eq!(refs[0], "usage");
+        assert_eq!(refs[1], "count");
     }
 
     #[test]
@@ -414,10 +509,10 @@ mod tests {
             uptime_flags: None,
         };
 
-        assert!(flags.cpu_flag_refs().is_none());
-        assert!(flags.disk_flag_refs().is_none());
-        assert!(flags.memory_flag_refs().is_none());
-        assert!(flags.uptime_flag_refs().is_none());
+        assert!(flags.cpu_flags.is_none());
+        assert!(flags.disk_flags.is_none());
+        assert!(flags.memory_flags.is_none());
+        assert!(flags.uptime_flags.is_none());
     }
 
     #[test]
@@ -465,8 +560,7 @@ mod tests {
         };
         let mut buf = String::new();
 
-        let updated_tick =
-            collect_stats_commands(&cli, &config, &mut context, 0, &mut buf).unwrap();
+        let updated_tick = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
 
         for key in ["CPU_COUNT=", "CPU_FREQUENCY=", "CPU_TEMP=", "CPU_USAGE="] {
             assert!(buf.contains(key), "missing CPU key {key} in: {buf}");
@@ -567,14 +661,14 @@ mod tests {
         let mut buf = String::new();
 
         // tick 4 + 1 == refresh rate 5: re-list the interfaces and reset to 0.
-        let wrapped = collect_stats_commands(&cli, &config, &mut context, 4, &mut buf).unwrap();
+        let wrapped = collect_stats_commands(&cli, &config, &mut context, 4, &mut buf);
         assert_eq!(
             wrapped, 0,
             "tick at refresh rate - 1 should wrap to 0, got {wrapped}"
         );
 
         // tick 0 + 1 < refresh rate 5: just increment.
-        let incremented = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf).unwrap();
+        let incremented = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
         assert_eq!(
             incremented, 1,
             "tick below refresh rate should increment, got {incremented}"

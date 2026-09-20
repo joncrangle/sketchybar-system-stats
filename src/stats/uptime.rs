@@ -41,51 +41,28 @@ const TIME_UNITS: &[TimeUnit] = &[
 /// `flags` slice selects every unit. When no unit qualifies (for example all
 /// requested flags are unknown, or the duration is zero seconds), the smallest
 /// qualifying unit falls back to a zero value.
-fn format_uptime(uptime_secs: u64, flags: &[&str], buf: &mut String) {
-    let mut uptime_secs = uptime_secs;
-
-    let sorted_flags: Vec<&str> = if flags.is_empty() {
-        TIME_UNITS.iter().map(|u| u.name).collect()
-    } else {
-        let mut flags_vec: Vec<&str> = flags
-            .iter()
-            .copied()
-            .filter(|&flag| TIME_UNITS.iter().any(|u| u.name == flag))
-            .collect();
-
-        flags_vec.sort_by_key(|&flag| {
-            TIME_UNITS
-                .iter()
-                .position(|u| u.name == flag)
-                .unwrap_or(usize::MAX)
-        });
-        flags_vec
-    };
-
+fn format_uptime(mut uptime_secs: u64, flags: &[&str], buf: &mut String) {
     let _ = write!(buf, "UPTIME=\"");
     let mut has_value = false;
+    let mut smallest_suffix = "s";
 
-    for &flag in &sorted_flags {
-        if let Some(unit) = TIME_UNITS.iter().find(|u| u.name == flag)
-            && uptime_secs >= unit.seconds
-        {
-            let value = uptime_secs / unit.seconds;
-            uptime_secs %= unit.seconds;
-            if has_value {
-                let _ = write!(buf, " ");
+    for unit in TIME_UNITS {
+        if flags.is_empty() || flags.contains(&unit.name) {
+            smallest_suffix = unit.suffix;
+            if uptime_secs >= unit.seconds {
+                let value = uptime_secs / unit.seconds;
+                uptime_secs %= unit.seconds;
+                if has_value {
+                    let _ = write!(buf, " ");
+                }
+                let _ = write!(buf, "{}{}", value, unit.suffix);
+                has_value = true;
             }
-            let _ = write!(buf, "{}{}", value, unit.suffix);
-            has_value = true;
         }
     }
 
     if !has_value {
-        let min_suffix = sorted_flags
-            .last()
-            .and_then(|flag| TIME_UNITS.iter().find(|u| u.name == *flag))
-            .map(|unit| unit.suffix)
-            .unwrap_or("s");
-        let _ = write!(buf, "0{}", min_suffix);
+        let _ = write!(buf, "0{}", smallest_suffix);
     }
 
     let _ = write!(buf, "\" ");
@@ -146,6 +123,11 @@ mod tests {
     #[test]
     fn test_format_uptime_empty_flags_fallback() {
         assert_eq!(format_uptime_helper(5400, &["bogus"]), "UPTIME=\"0s\" ");
+    }
+
+    #[test]
+    fn test_format_uptime_zero_with_custom_smallest_unit() {
+        assert_eq!(format_uptime_helper(0, &["day", "hour"]), "UPTIME=\"0h\" ");
     }
 
     #[test]

@@ -1,9 +1,75 @@
-use super::{BYTES_PER_GB, PERCENT, unit};
+use std::collections::HashSet;
 use std::fmt::Write;
 use sysinfo::Disks;
 
+use super::{BYTES_PER_GB, PERCENT, unit};
+
+fn apfs_container_id(disk_name: &str) -> &str {
+    const DEVICE_PREFIX: &str = "/dev/disk";
+
+    let Some(device_suffix) = disk_name.strip_prefix(DEVICE_PREFIX) else {
+        return disk_name;
+    };
+    let digit_len = device_suffix.bytes().take_while(u8::is_ascii_digit).count();
+    if digit_len > 0 && device_suffix[digit_len..].starts_with('s') {
+        return &disk_name[..DEVICE_PREFIX.len() + digit_len];
+    }
+
+    disk_name
+}
+
+#[cfg(target_os = "macos")]
+fn get_mount_device_name(mount_point: &std::path::Path) -> Option<String> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    // Mount-device lookup is best-effort: callers can still deduplicate by the
+    // sysinfo disk name when a path cannot be represented for `statfs`.
+    let path = CString::new(mount_point.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statfs(path.as_ptr(), &mut stat) } == 0 {
+        let name_bytes: Vec<u8> = stat
+            .f_mntfromname
+            .iter()
+            .take_while(|&&c| c != 0)
+            .map(|&c| c as u8)
+            .collect();
+        String::from_utf8(name_bytes).ok()
+    } else {
+        None
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn get_mount_device_name(_mount_point: &std::path::Path) -> Option<String> {
+    None
+}
+
 pub fn get_disk_stats(disks: &Disks, flags: &[&str], no_units: bool, buf: &mut String) {
-    let (total_space, used_space) = disks.list().iter().fold((0, 0), |(total, used), disk| {
+    let mut seen_containers = HashSet::new();
+    let unique_disks: Vec<_> = disks
+        .list()
+        .iter()
+        .filter(|disk| {
+            let is_apfs = disk
+                .file_system()
+                .to_string_lossy()
+                .eq_ignore_ascii_case("apfs");
+            let device_name = get_mount_device_name(disk.mount_point())
+                .unwrap_or_else(|| disk.name().to_string_lossy().into_owned());
+
+            let key = if is_apfs {
+                apfs_container_id(&device_name).to_string()
+            } else {
+                device_name
+            };
+
+            seen_containers.insert(key)
+        })
+        .collect();
+
+    let disk_count = unique_disks.len();
+    let (total_space, used_space) = unique_disks.iter().fold((0, 0), |(total, used), disk| {
         (
             total + disk.total_space(),
             used + disk.total_space() - disk.available_space(),
@@ -18,7 +84,7 @@ pub fn get_disk_stats(disks: &Disks, flags: &[&str], no_units: bool, buf: &mut S
     for &flag in flags {
         match flag {
             "count" => {
-                let _ = write!(buf, "DISK_COUNT=\"{}\" ", disks.list().len());
+                let _ = write!(buf, "DISK_COUNT=\"{disk_count}\" ");
             }
             "free" => {
                 let unit = unit(no_units, "GB");
@@ -103,5 +169,27 @@ mod tests {
         get_disk_stats(&disks, &[], false, &mut buf);
 
         assert_eq!(buf, "");
+    }
+
+    #[test]
+    fn test_apfs_container_id_extraction() {
+        assert_eq!(apfs_container_id("/dev/disk3s1s1"), "/dev/disk3");
+        assert_eq!(apfs_container_id("/dev/disk3s5"), "/dev/disk3");
+        assert_eq!(apfs_container_id("disk1s2"), "disk1s2");
+        assert_eq!(apfs_container_id("/dev/disk4"), "/dev/disk4");
+        assert_eq!(apfs_container_id("custom_volume"), "custom_volume");
+        assert_eq!(
+            apfs_container_id("/Volumes/mydisk1s2"),
+            "/Volumes/mydisk1s2"
+        );
+        assert_eq!(apfs_container_id("mydisk1s2"), "mydisk1s2");
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_get_mount_device_name_root() {
+        let dev = get_mount_device_name(std::path::Path::new("/"));
+        assert!(dev.is_some());
+        assert!(dev.unwrap().starts_with("/dev/disk"));
     }
 }

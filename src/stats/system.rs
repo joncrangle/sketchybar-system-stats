@@ -1,8 +1,8 @@
 use std::fmt::Write;
 use sysinfo::System;
 
-fn system_value(value: Option<String>) -> String {
-    value.unwrap_or_else(|| "N/A".to_string())
+fn system_value(value: Option<&str>) -> &str {
+    value.unwrap_or("N/A")
 }
 
 pub fn get_system_stats(flags: &[&str], buf: &mut String) {
@@ -16,30 +16,38 @@ pub fn get_system_stats(flags: &[&str], buf: &mut String) {
             }
 
             "host_name" => {
-                let _ = write!(buf, "HOST_NAME=\"{}\" ", system_value(System::host_name()));
+                let _ = write!(
+                    buf,
+                    "HOST_NAME=\"{}\" ",
+                    system_value(System::host_name().as_deref())
+                );
             }
             "kernel_version" => {
                 let _ = write!(
                     buf,
                     "KERNEL_VERSION=\"{}\" ",
-                    system_value(System::kernel_version())
+                    system_value(System::kernel_version().as_deref())
                 );
             }
             "name" => {
-                let _ = write!(buf, "SYSTEM_NAME=\"{}\" ", system_value(System::name()));
+                let _ = write!(
+                    buf,
+                    "SYSTEM_NAME=\"{}\" ",
+                    system_value(System::name().as_deref())
+                );
             }
             "os_version" => {
                 let _ = write!(
                     buf,
                     "OS_VERSION=\"{}\" ",
-                    system_value(System::os_version())
+                    system_value(System::os_version().as_deref())
                 );
             }
             "long_os_version" => {
                 let _ = write!(
                     buf,
                     "LONG_OS_VERSION=\"{}\" ",
-                    system_value(System::long_os_version())
+                    system_value(System::long_os_version().as_deref())
                 );
             }
             _ => {}
@@ -66,5 +74,11 @@ mod tests {
         assert!(buf.contains("SYSTEM_NAME="));
         assert!(buf.contains(" OS_VERSION=\""));
         assert!(buf.contains("LONG_OS_VERSION="));
+    }
+
+    #[test]
+    fn test_system_value_some_and_none() {
+        assert_eq!(system_value(Some("darwin")), "darwin");
+        assert_eq!(system_value(None), "N/A");
     }
 }

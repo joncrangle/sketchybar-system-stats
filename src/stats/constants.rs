@@ -10,9 +10,6 @@ pub const PERCENT: f32 = 100.0;
 /// Seconds in one minute, used for battery time conversions.
 pub const SECONDS_PER_MINUTE: u64 = 60;
 
-/// Temperature sentinel returned when no CPU temperature component is found.
-pub const NO_TEMP_SENTINEL: f32 = -1.0;
-
 /// Returns the unit string, or an empty string when units are disabled.
 pub fn unit(no_units: bool, unit: &'static str) -> &'static str {
     if no_units { "" } else { unit }
