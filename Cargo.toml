@@ -7,10 +7,10 @@ build = "build.rs"
 
 [dependencies]
 anyhow = "1.0.104"
-clap = { version = "4.6.6", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 fs2 = "0.4.3"
 libc = "0.2"
-starship-battery = "0.11.1"
+starship-battery = "0.12.0"
 sysinfo = { version = "0.39.6", default-features = false, features = [
   "component",
   "disk",
@@ -20,7 +20,7 @@ sysinfo = { version = "0.39.6", default-features = false, features = [
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "signal"] }
 
 [build-dependencies]
-cc = "1.4"
+cc = "1.5"
 
 [profile.release]
 opt-level = 3
