@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
-use std::ptr::NonNull;
+use std::ffi::CString;
+use std::os::raw::{c_char, c_int};
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant};
 
@@ -10,33 +9,19 @@ const PORT_REFRESH_INTERVAL_SECS: u64 = 300;
 
 #[link(name = "sketchybar", kind = "static")]
 unsafe extern "C" {
-    fn sketchybar(message: *const c_char, bar_name: *const c_char) -> *mut c_char;
-    fn free_sketchybar_response(response: *mut c_char);
+    fn sketchybar_send(
+        message: *const c_char,
+        bar_name: *const c_char,
+        response: *mut *mut c_char,
+    ) -> c_int;
     fn cleanup_sketchybar();
     fn refresh_sketchybar_port(bar_name: *const c_char) -> bool;
 }
 
-struct SketchybarResponse {
-    ptr: NonNull<c_char>,
-}
-
-impl SketchybarResponse {
-    fn new(ptr: *mut c_char) -> Result<Self> {
-        let ptr = NonNull::new(ptr).context("Failed to get response from sketchybar")?;
-        Ok(Self { ptr })
-    }
-
-    unsafe fn as_c_str(&self) -> &CStr {
-        unsafe { CStr::from_ptr(self.ptr.as_ptr()) }
-    }
-}
-
-impl Drop for SketchybarResponse {
-    fn drop(&mut self) {
-        unsafe {
-            free_sketchybar_response(self.ptr.as_ptr());
-        }
-    }
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeliveryStatus {
+    Acknowledged,
+    SentWithoutAcknowledgment,
 }
 
 struct PortState {
@@ -108,7 +93,7 @@ impl Sketchybar {
         event: &str,
         payload: Option<&str>,
         verbose: bool,
-    ) -> Result<String> {
+    ) -> Result<DeliveryStatus> {
         self.maybe_refresh_port().await?;
 
         let message = format_sketchybar_message(flag, event, payload);
@@ -117,26 +102,30 @@ impl Sketchybar {
         let bar_name = self.bar_name.clone();
 
         tokio::task::spawn_blocking(move || {
-            let response = SketchybarResponse::new(unsafe {
-                sketchybar(c_message.as_ptr(), bar_name.as_ptr())
-            })?;
-            let response = unsafe {
-                response
-                    .as_c_str()
-                    .to_str()
-                    .context("Failed to convert C string to Rust string")?
-                    .to_owned()
+            // The C enum uses 0 for failed delivery, 1 for an acknowledgment,
+            // and 2 for delivery without a reply. No response copy is needed.
+            let status = match unsafe {
+                sketchybar_send(c_message.as_ptr(), bar_name.as_ptr(), std::ptr::null_mut())
+            } {
+                0 => anyhow::bail!("Failed to deliver command to SketchyBar"),
+                1 => DeliveryStatus::Acknowledged,
+                2 => DeliveryStatus::SentWithoutAcknowledgment,
+                other => anyhow::bail!("Unexpected SketchyBar delivery status: {other}"),
             };
 
             if verbose {
+                let detail = match status {
+                    DeliveryStatus::Acknowledged => "acknowledged",
+                    DeliveryStatus::SentWithoutAcknowledgment => "no acknowledgment received",
+                };
                 println!(
-                    "Successfully sent to SketchyBar: (Bar: {}): {}",
+                    "Sent to SketchyBar ({detail}): (Bar: {}): {}",
                     bar_name.to_str().unwrap_or("?"),
                     message
                 );
             }
 
-            Ok(response)
+            Ok(status)
         })
         .await
         .context("SketchyBar IPC task failed")?

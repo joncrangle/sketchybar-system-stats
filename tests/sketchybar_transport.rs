@@ -25,16 +25,24 @@ fn wait_with_timeout(mut child: Child, timeout: Duration) -> ExitStatus {
 fn test_sketchybar_transport_regressions() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let fixture = manifest_dir.join("tests/sketchybar_transport_fixture.c");
+    let header_fixture = manifest_dir.join("tests/sketchybar_transport_header.c");
+    let implementation = manifest_dir.join("include/sketchybar.c");
     let executable = std::env::temp_dir().join(format!(
         "sketchybar-transport-fixture-{}",
         std::process::id()
     ));
 
     let compile_output = Command::new("cc")
+        .arg("-std=c17")
         .arg("-Wall")
         .arg("-Wextra")
+        .arg("-Wpedantic")
+        .arg("-Werror")
         .arg("-pthread")
+        .arg("-Dbootstrap_look_up=probe_lookup")
         .arg(&fixture)
+        .arg(&header_fixture)
+        .arg(&implementation)
         .arg("-o")
         .arg(&executable)
         .stdout(Stdio::null())
@@ -47,7 +55,14 @@ fn test_sketchybar_transport_regressions() {
         String::from_utf8_lossy(&compile_output.stderr)
     );
 
-    for case in ["tokens", "delayed-reply", "full-queue"] {
+    for case in [
+        "tokens",
+        "delayed-reply",
+        "routing",
+        "oversized-name",
+        "full-queue",
+        "null-inputs",
+    ] {
         let child = Command::new(&executable)
             .arg(case)
             .stdout(Stdio::null())

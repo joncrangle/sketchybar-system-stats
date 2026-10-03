@@ -149,12 +149,14 @@ $ stats_provider --cpu usage --disk usage --memory ram_usage --interval 2 --verb
 SketchyBar Stats Provider is running.
 Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, network_refresh_rate: 5, bar: None, verbose: true, no_units: false }
 Current message: CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
+Sent to SketchyBar (acknowledged): (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
+Sent to SketchyBar (acknowledged): (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
+Sent to SketchyBar (acknowledged): (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
 ```
+
+A command can be delivered even when its acknowledgment does not arrive within 100 ms. Verbose output reports this as `no acknowledgment received`; the provider does not resend that command. A delivery failure is reported as a warning.
 
 ## Usage with Sketchybar
 
