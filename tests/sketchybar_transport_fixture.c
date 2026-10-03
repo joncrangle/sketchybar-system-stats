@@ -138,6 +138,34 @@ static void assert_no_queued_message(mach_port_t port) {
   assert(result == MACH_RCV_TIMED_OUT);
 }
 
+static size_t count_dead_names(void) {
+  mach_port_name_array_t names = NULL;
+  mach_port_type_array_t types = NULL;
+  mach_msg_type_number_t name_count = 0;
+  mach_msg_type_number_t type_count = 0;
+  assert(mach_port_names(mach_task_self(), &names, &name_count, &types,
+                         &type_count) == KERN_SUCCESS);
+  assert(name_count == type_count);
+
+  size_t dead_names = 0;
+  for (mach_msg_type_number_t i = 0; i < type_count; ++i) {
+    if ((types[i] & MACH_PORT_TYPE_DEAD_NAME) != 0) {
+      ++dead_names;
+    }
+  }
+  if (names != NULL) {
+    assert(vm_deallocate(mach_task_self(), (vm_address_t)names,
+                         (vm_size_t)name_count * sizeof(*names)) ==
+           KERN_SUCCESS);
+  }
+  if (types != NULL) {
+    assert(vm_deallocate(mach_task_self(), (vm_address_t)types,
+                         (vm_size_t)type_count * sizeof(*types)) ==
+           KERN_SUCCESS);
+  }
+  return dead_names;
+}
+
 static void test_token_round_trips(void) {
   make_private_port(&alpha_port);
   struct receiver_args cases[] = {
@@ -200,6 +228,18 @@ static void test_delayed_ack_does_not_resend(void) {
   assert(response == NULL);
   join_receiver(receiver, &args);
   assert_no_queued_message(alpha_port);
+
+  unsigned int lookups_after_no_ack = lookup_count;
+  const char followup_expected[] = "followup\0";
+  struct receiver_args followup = {.port = alpha_port,
+                                   .expected = followup_expected,
+                                   .expected_len = sizeof(followup_expected),
+                                   .reply = "followup-ack"};
+  receiver = start_receiver(&followup);
+  assert(sketchybar_send("followup", "alpha", NULL) ==
+         SKETCHYBAR_SEND_ACKNOWLEDGED);
+  join_receiver(receiver, &followup);
+  assert(lookup_count == lookups_after_no_ack);
   cleanup_sketchybar();
 }
 
@@ -265,6 +305,11 @@ static void test_full_queue_send_is_bounded(void) {
     ++queued;
   }
   assert(queued > 0);
+  mach_msg_destroy(&message);
+  mach_port_urefs_t baseline_send_refs = 0;
+  assert(mach_port_get_refs(mach_task_self(), alpha_port, MACH_PORT_RIGHT_SEND,
+                            &baseline_send_refs) == KERN_SUCCESS);
+  size_t dead_names_before = count_dead_names();
 
   struct timespec start;
   struct timespec end;
@@ -276,6 +321,35 @@ static void test_full_queue_send_is_bounded(void) {
                    (double)(end.tv_nsec - start.tv_nsec) / 1e9;
   assert(status == SKETCHYBAR_SEND_FAILED);
   assert(elapsed >= 0.5 && elapsed < 5.0);
+
+  mach_port_urefs_t refs_after_failure = 0;
+  assert(mach_port_get_refs(mach_task_self(), alpha_port, MACH_PORT_RIGHT_SEND,
+                            &refs_after_failure) == KERN_SUCCESS);
+  if (refs_after_failure != baseline_send_refs) {
+    fprintf(stderr, "private port send refs changed from %u to %u\n",
+            baseline_send_refs, refs_after_failure);
+  }
+  assert(refs_after_failure == baseline_send_refs);
+  assert(count_dead_names() == dead_names_before);
+
+  size_t drained = 0;
+  for (;;) {
+    struct transport_buffer queued_message = {0};
+    mach_msg_return_t result = mach_msg(
+        &queued_message.message.header, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0,
+        sizeof(queued_message), alpha_port, 10, MACH_PORT_NULL);
+    if (result == MACH_RCV_TIMED_OUT) {
+      break;
+    }
+    assert(result == MACH_MSG_SUCCESS);
+    mach_msg_destroy(&queued_message.message.header);
+    ++drained;
+  }
+  assert(drained == queued);
+
+  unsigned int lookups_before_recovery = lookup_count;
+  send_routed_message(alpha_port, "alpha", "after-full-queue");
+  assert(lookup_count == lookups_before_recovery + 1);
   cleanup_sketchybar();
 }
 

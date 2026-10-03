@@ -11,7 +11,7 @@
 
 #define SKETCHYBAR_SEND_TIMEOUT_MS 1000
 #define SKETCHYBAR_RESPONSE_TIMEOUT_MS 100
-#define SKETCHYBAR_SERVICE_NAME_SIZE 256
+#define SKETCHYBAR_SERVICE_NAME_SIZE 256U
 
 struct mach_message {
   mach_msg_header_t header;
@@ -36,7 +36,7 @@ static bool make_service_name(const char *bar_name,
 
   int length = snprintf(service_name, SKETCHYBAR_SERVICE_NAME_SIZE,
                         "git.felix.%s", bar_name);
-  return length >= 0 && length < SKETCHYBAR_SERVICE_NAME_SIZE;
+  return length >= 0 && (size_t)length < SKETCHYBAR_SERVICE_NAME_SIZE;
 }
 
 static mach_port_t mach_get_bs_port(const char *service_name) {
@@ -97,6 +97,33 @@ static bool mach_receive_message(mach_port_t port, struct mach_buffer *buffer,
   return true;
 }
 
+static void destroy_pseudo_received_send_message(struct mach_message *message,
+                                                 const char *owned_payload) {
+  mach_msg_header_t *header = &message->header;
+  mach_port_t local_port = header->msgh_local_port;
+  mach_msg_type_name_t local_disposition =
+      MACH_MSGH_BITS_LOCAL(header->msgh_bits);
+
+  if (local_port != MACH_PORT_NULL && local_port != MACH_PORT_DEAD) {
+    switch (local_disposition) {
+    case MACH_MSG_TYPE_MOVE_SEND:
+    case MACH_MSG_TYPE_MOVE_SEND_ONCE:
+      mach_port_deallocate(mach_task_self(), local_port);
+      header->msgh_local_port = MACH_PORT_NULL;
+      break;
+    default:
+      break;
+    }
+  }
+
+  /* The pseudo-receive maps the OOL copy back into this task. Keep the
+   * caller's original allocation if the returned descriptor aliases it. */
+  if (message->descriptor.address == owned_payload) {
+    message->descriptor.deallocate = false;
+  }
+  mach_msg_destroy(header);
+}
+
 static enum sketchybar_send_status mach_send_message(mach_port_t port,
                                                      const char *message,
                                                      uint32_t length,
@@ -109,12 +136,6 @@ static enum sketchybar_send_status mach_send_message(mach_port_t port,
   mach_port_t response_port = MACH_PORT_NULL;
   if (mach_port_allocate(task, MACH_PORT_RIGHT_RECEIVE, &response_port) !=
       KERN_SUCCESS) {
-    return SKETCHYBAR_SEND_FAILED;
-  }
-
-  if (mach_port_insert_right(task, response_port, response_port,
-                             MACH_MSG_TYPE_MAKE_SEND) != KERN_SUCCESS) {
-    mach_port_mod_refs(task, response_port, MACH_PORT_RIGHT_RECEIVE, -1);
     return SKETCHYBAR_SEND_FAILED;
   }
 
@@ -138,8 +159,12 @@ static enum sketchybar_send_status mach_send_message(mach_port_t port,
                (mach_msg_size_t)sizeof(msg), 0, MACH_PORT_NULL,
                SKETCHYBAR_SEND_TIMEOUT_MS, MACH_PORT_NULL);
   if (send_result != MACH_MSG_SUCCESS) {
+    mach_msg_return_t send_error = send_result & ~MACH_MSG_MASK;
+    if (send_error == MACH_SEND_TIMED_OUT ||
+        send_error == MACH_SEND_INTERRUPTED) {
+      destroy_pseudo_received_send_message(&msg, message);
+    }
     mach_port_mod_refs(task, response_port, MACH_PORT_RIGHT_RECEIVE, -1);
-    mach_port_deallocate(task, response_port);
     return SKETCHYBAR_SEND_FAILED;
   }
 
@@ -162,7 +187,6 @@ static enum sketchybar_send_status mach_send_message(mach_port_t port,
     mach_msg_destroy(&buffer.message.header);
   }
   mach_port_mod_refs(task, response_port, MACH_PORT_RIGHT_RECEIVE, -1);
-  mach_port_deallocate(task, response_port);
 
   return received ? SKETCHYBAR_SEND_ACKNOWLEDGED : SKETCHYBAR_SENT_NO_ACK;
 }
@@ -263,6 +287,9 @@ sketchybar_send(const char *message, const char *bar_name, char **response) {
     port = cache_service_port_locked(service_name);
     status = mach_send_message(port, formatted_message,
                                (uint32_t)formatted_length, response);
+    if (status == SKETCHYBAR_SEND_FAILED) {
+      release_cached_port_locked();
+    }
   }
   pthread_mutex_unlock(&g_port_mutex);
 
