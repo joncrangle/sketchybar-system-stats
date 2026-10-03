@@ -280,6 +280,42 @@ static void test_named_endpoints_and_refresh(void) {
   cleanup_sketchybar();
 }
 
+static void test_cached_service_restart_reconnects(void) {
+  make_private_port(&alpha_port);
+  mach_port_t old_port = alpha_port;
+  send_routed_message(old_port, "alpha", "before-restart");
+  size_t baseline_dead_names = count_dead_names();
+
+  assert(mach_port_mod_refs(mach_task_self(), old_port, MACH_PORT_RIGHT_RECEIVE,
+                            -1) == KERN_SUCCESS);
+  mach_port_urefs_t old_dead_refs = 0;
+  assert(mach_port_get_refs(mach_task_self(), old_port,
+                            MACH_PORT_RIGHT_DEAD_NAME,
+                            &old_dead_refs) == KERN_SUCCESS);
+  assert(old_dead_refs == 2);
+
+  make_private_port(&alpha_port);
+  assert(alpha_port != old_port);
+  unsigned int lookups_before_restart_send = lookup_count;
+  send_routed_message(alpha_port, "alpha", "after-restart");
+  assert(lookup_count == lookups_before_restart_send + 1);
+  assert_no_queued_message(alpha_port);
+
+  old_dead_refs = 0;
+  assert(mach_port_get_refs(mach_task_self(), old_port,
+                            MACH_PORT_RIGHT_DEAD_NAME,
+                            &old_dead_refs) == KERN_SUCCESS);
+  assert(old_dead_refs == 1);
+  assert(mach_port_deallocate(mach_task_self(), old_port) == KERN_SUCCESS);
+
+  cleanup_sketchybar();
+  mach_port_urefs_t new_port_refs = 0;
+  assert(mach_port_get_refs(mach_task_self(), alpha_port, MACH_PORT_RIGHT_SEND,
+                            &new_port_refs) == KERN_SUCCESS);
+  assert(new_port_refs == 1);
+  assert(count_dead_names() == baseline_dead_names);
+}
+
 static void test_oversized_name_does_not_lookup(void) {
   make_private_port(&alpha_port);
   char name[512];
@@ -371,6 +407,8 @@ int main(int argc, char **argv) {
     test_delayed_ack_does_not_resend();
   } else if (strcmp(argv[1], "routing") == 0) {
     test_named_endpoints_and_refresh();
+  } else if (strcmp(argv[1], "restart") == 0) {
+    test_cached_service_restart_reconnects();
   } else if (strcmp(argv[1], "oversized-name") == 0) {
     test_oversized_name_does_not_lookup();
   } else if (strcmp(argv[1], "full-queue") == 0) {

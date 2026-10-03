@@ -160,7 +160,8 @@ static enum sketchybar_send_status mach_send_message(mach_port_t port,
                SKETCHYBAR_SEND_TIMEOUT_MS, MACH_PORT_NULL);
   if (send_result != MACH_MSG_SUCCESS) {
     mach_msg_return_t send_error = send_result & ~MACH_MSG_MASK;
-    if (send_error == MACH_SEND_TIMED_OUT ||
+    if (send_error == MACH_SEND_INVALID_DEST ||
+        send_error == MACH_SEND_TIMED_OUT ||
         send_error == MACH_SEND_INTERRUPTED) {
       destroy_pseudo_received_send_message(&msg, message);
     }

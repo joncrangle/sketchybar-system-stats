@@ -59,6 +59,7 @@ fn test_sketchybar_transport_regressions() {
         "tokens",
         "delayed-reply",
         "routing",
+        "restart",
         "oversized-name",
         "full-queue",
         "null-inputs",
