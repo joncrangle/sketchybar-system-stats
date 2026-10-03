@@ -45,10 +45,26 @@ struct PortState {
 }
 
 fn format_sketchybar_message(flag: &str, event: &str, payload: Option<&str>) -> String {
+    let operation = if flag == "trigger" {
+        format!("--add event {event} --trigger {event}")
+    } else {
+        format!("--{flag} {event}")
+    };
     match payload.map(str::trim).filter(|p| !p.is_empty()) {
-        Some(p) => format!("--{flag} {event} {p}"),
-        None => format!("--{flag} {event}"),
+        Some(p) => format!("{operation} {p}"),
+        None => operation,
     }
+}
+
+pub(crate) fn escape_quoted_value(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character == '\\' || character == '"' {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 pub struct Sketchybar {
@@ -72,7 +88,12 @@ impl Sketchybar {
     async fn maybe_refresh_port(&self) -> Result<()> {
         let mut state = self.port_state.lock().await;
         if state.last_refresh.elapsed() >= state.refresh_interval {
-            let refreshed = unsafe { refresh_sketchybar_port(self.bar_name.as_ptr()) };
+            let bar_name = self.bar_name.clone();
+            let refreshed = tokio::task::spawn_blocking(move || unsafe {
+                refresh_sketchybar_port(bar_name.as_ptr())
+            })
+            .await
+            .context("SketchyBar port refresh task failed")?;
             if !refreshed {
                 anyhow::bail!("Failed to refresh sketchybar port");
             }
@@ -93,28 +114,32 @@ impl Sketchybar {
         let message = format_sketchybar_message(flag, event, payload);
         let c_message =
             CString::new(message.as_str()).context("Failed to create CString for message")?;
+        let bar_name = self.bar_name.clone();
 
-        let response = SketchybarResponse::new(unsafe {
-            sketchybar(c_message.as_ptr(), self.bar_name.as_ptr())
-        })?;
+        tokio::task::spawn_blocking(move || {
+            let response = SketchybarResponse::new(unsafe {
+                sketchybar(c_message.as_ptr(), bar_name.as_ptr())
+            })?;
+            let response = unsafe {
+                response
+                    .as_c_str()
+                    .to_str()
+                    .context("Failed to convert C string to Rust string")?
+                    .to_owned()
+            };
 
-        let response = unsafe {
-            response
-                .as_c_str()
-                .to_str()
-                .context("Failed to convert C string to Rust string")?
-                .to_owned()
-        };
+            if verbose {
+                println!(
+                    "Successfully sent to SketchyBar: (Bar: {}): {}",
+                    bar_name.to_str().unwrap_or("?"),
+                    message
+                );
+            }
 
-        if verbose {
-            println!(
-                "Successfully sent to SketchyBar: (Bar: {}): {}",
-                self.bar_name.to_str().unwrap_or("?"),
-                message
-            );
-        }
-
-        Ok(response)
+            Ok(response)
+        })
+        .await
+        .context("SketchyBar IPC task failed")?
     }
 }
 
@@ -156,7 +181,23 @@ mod tests {
     fn test_format_sketchybar_message_with_payload_trims_trailing_space() {
         assert_eq!(
             format_sketchybar_message("trigger", "system_stats", Some("CPU_USAGE=\"5%\" ")),
-            "--trigger system_stats CPU_USAGE=\"5%\""
+            "--add event system_stats --trigger system_stats CPU_USAGE=\"5%\""
+        );
+    }
+
+    #[test]
+    fn test_format_sketchybar_message_registers_event_before_trigger() {
+        assert_eq!(
+            format_sketchybar_message("trigger", "system_stats", None),
+            "--add event system_stats --trigger system_stats"
+        );
+    }
+
+    #[test]
+    fn test_escape_quoted_value_escapes_quotes_and_backslashes() {
+        assert_eq!(
+            escape_quoted_value(r#"Alice's \"Mac\""#),
+            r#"Alice's \\\"Mac\\\""#
         );
     }
 }

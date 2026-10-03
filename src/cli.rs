@@ -59,7 +59,7 @@ pub struct Cli {
     #[arg(short = 's', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_SYSTEM_FLAGS), help = "Get system stats")]
     pub system: Option<Vec<String>>,
 
-    #[arg(short = 'u', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_UPTIME_FLAGS), help = "Get uptime stats")]
+    #[arg(short = 'u', long, num_args = 0.., value_parser = clap::builder::PossibleValuesParser::new(ALL_UPTIME_FLAGS), help = "Get uptime stats")]
     pub uptime: Option<Vec<String>>,
 
     #[arg(
@@ -251,6 +251,15 @@ mod tests {
             let result = Cli::try_parse_from(["stats_provider", flag_arg.as_str(), "bogus"]);
             assert!(result.is_err(), "--{arg} should reject an unknown value");
         }
+    }
+
+    #[test]
+    fn test_uptime_flag_without_values_parses_as_empty_selection() {
+        let parsed = Cli::try_parse_from(["stats_provider", "--uptime", "--no-units"])
+            .expect("bare --uptime should parse before the next option");
+
+        assert_eq!(parsed.uptime, Some(Vec::new()));
+        assert!(parsed.no_units);
     }
 
     #[test]

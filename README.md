@@ -59,7 +59,7 @@ Options:
   -m, --memory <MEMORY>...                         Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
   -n, --network <NETWORK>...                       Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
   -s, --system <SYSTEM>...                         Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
-  -u, --uptime <UPTIME>...                         Get uptime stats [possible values: week, day, hour, min, sec]
+  -u, --uptime [<UPTIME>...]                       Get uptime stats [possible values: week, day, hour, min, sec]
   -i, --interval <INTERVAL>                        Refresh interval in seconds [default: 5]
       --network-refresh-rate <NETWORK_REFRESH_RATE> Network refresh rate (how often to refresh network interface list, in stat intervals) [default: 5]
       --bar <BAR>                                  Bar name (optional)
@@ -121,6 +121,8 @@ stats_provider --cpu usage --memory ram_usage --no-units
 
 This is useful when you want to process the values programmatically or apply custom formatting in your Sketchybar configuration.
 
+Uptime also respects `--no-units`. Use `--uptime sec --no-units` for a single value in total seconds. With multiple uptime units, the values remain separated by spaces in descending unit order, such as `"1 30"` for one hour and thirty minutes.
+
 ### Network Optimization
 
 The `--network-refresh-rate` parameter controls how frequently the network interface list is refreshed:
@@ -146,13 +148,12 @@ Add the `--verbose` flag to see more detailed output:
 $ stats_provider --cpu usage --disk usage --memory ram_usage --interval 2 --verbose
 SketchyBar Stats Provider is running.
 Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, network_refresh_rate: 5, bar: None, verbose: true, no_units: false }
-Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats
 Current message: CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: (Bar: sketchybar): --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
+Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: (Bar: sketchybar): --trigger system_stats CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
+Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
-Successfully sent to SketchyBar: (Bar: sketchybar): --trigger system_stats CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
+Successfully sent to SketchyBar: (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="5%" DISK_USAGE="65%" RAM_USAGE="54%"
 ```
 
 ## Usage with Sketchybar
@@ -164,7 +165,7 @@ Environment variables that can be provided by the `system_stats` event
 | `ARCH`                   | System architecture                       |
 | `BATTERY_PERCENTAGE`     | Battery charge level %                    |
 | `BATTERY_REMAINING`      | Time remaining until empty (min)          |
-| `BATTERY_STATE`          | Battery charging state                    |
+| `BATTERY_STATE`          | charging, discharging, full, empty, paused, or unknown |
 | `BATTERY_TIME_TO_FULL`   | Time until fully charged (min)            |
 | `CPU_COUNT`              | Number of CPU cores                       |
 | `CPU_FREQUENCY`          | CPU frequency MHz                         |
@@ -195,7 +196,7 @@ Environment variables that can be provided by the `system_stats` event
 | `UPTIME`                 | System uptime (customizable units)        |
 
 > [!NOTE]
-> System stats that are not expected to change between system restarts (e.g. `NAME`, `OS_VERSION`, etc.) are sent when the app binary starts, but are not refreshed.
+> System stats such as `HOST_NAME`, `SYSTEM_NAME`, and `OS_VERSION` are collected once when the provider starts and included in every update. Items that subscribe later receive them on the next update. The provider also registers `system_stats` before each trigger so it can recover after Sketchybar restarts or reloads.
 
 ### `sketchybarrc` file
 
@@ -203,11 +204,14 @@ Run `stats_provider` with desired options by including it in your `sketchybarrc`
 
 ```bash
 killall stats_provider
+sketchybar --add event system_stats
 # Update with path to stats_provider
 stats_provider --cpu usage --disk usage --memory ram_usage &
 ```
 
 Example: use `stats_provider` to add an item `disk_usage`, subscribe to the `system_stats` event and update the `disk_usage` item.
+
+Create the event in your configuration before subscribing items, since the provider starts in the background.
 
 ```bash
 # Ensure that `stats_provider` is running by invoking it earlier in your `sketchybarrc` file
@@ -219,6 +223,7 @@ sketchybar --add item disk_usage right \
 ### `SbarLua` module
 
 ```lua
+sbar.add('event', 'system_stats')
 -- Update with path to stats_provider
 sbar.exec('killall stats_provider >/dev/null; stats_provider --cpu usage --disk usage --memory ram_usage')
 

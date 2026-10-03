@@ -2,6 +2,17 @@ use super::{PERCENT, SECONDS_PER_MINUTE, unit};
 use starship_battery::{Manager, State};
 use std::fmt::Write;
 
+fn battery_state_name(state: State) -> &'static str {
+    match state {
+        State::Charging => "charging",
+        State::Discharging => "discharging",
+        State::Full => "full",
+        State::Empty => "empty",
+        State::Paused => "paused",
+        _ => "unknown",
+    }
+}
+
 pub fn get_battery_stats(flags: &[&str], no_units: bool, buf: &mut String) {
     let manager = match Manager::new() {
         Ok(m) => m,
@@ -27,13 +38,7 @@ pub fn get_battery_stats(flags: &[&str], no_units: bool, buf: &mut String) {
                 let _ = write!(buf, "BATTERY_PERCENTAGE=\"{percentage}{unit}\" ");
             }
             "state" => {
-                let state_str = match battery.state() {
-                    State::Charging => "charging",
-                    State::Discharging => "discharging",
-                    State::Full => "full",
-                    State::Empty => "empty",
-                    _ => "unknown",
-                };
+                let state_str = battery_state_name(battery.state());
                 let _ = write!(buf, "BATTERY_STATE=\"{state_str}\" ");
             }
             "remaining" => {
@@ -58,6 +63,11 @@ pub fn get_battery_stats(flags: &[&str], no_units: bool, buf: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_battery_state_name_maps_paused_state() {
+        assert_eq!(battery_state_name(State::Paused), "paused");
+    }
 
     #[test]
     fn test_get_battery_stats_with_units() {
