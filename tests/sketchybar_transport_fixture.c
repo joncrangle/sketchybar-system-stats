@@ -30,7 +30,7 @@ struct receiver_args {
   const char *expected;
   size_t expected_len;
   const char *reply;
-  unsigned int delay_ms;
+  pthread_mutex_t *reply_gate;
   int received;
 };
 
@@ -68,14 +68,6 @@ static void make_private_port(mach_port_t *port) {
                                 MACH_MSG_TYPE_MAKE_SEND) == KERN_SUCCESS);
 }
 
-static void pause_ms(unsigned int milliseconds) {
-  struct timespec remaining = {.tv_sec = milliseconds / 1000,
-                               .tv_nsec =
-                                   (long)(milliseconds % 1000) * 1000000};
-  while (nanosleep(&remaining, &remaining) != 0) {
-  }
-}
-
 static void reply_to(mach_port_t port, const char *text, bool may_be_late) {
   struct transport_message response = {0};
   response.header.msgh_remote_port = port;
@@ -109,11 +101,12 @@ static void *receive_and_reply(void *opaque) {
                 args->expected_len) == 0);
   ++args->received;
 
-  if (args->delay_ms != 0) {
-    pause_ms(args->delay_ms);
+  if (args->reply_gate != NULL) {
+    assert(pthread_mutex_lock(args->reply_gate) == 0);
+    assert(pthread_mutex_unlock(args->reply_gate) == 0);
   }
   reply_to(buffer.message.header.msgh_remote_port, args->reply,
-           args->delay_ms != 0);
+           args->reply_gate != NULL);
   mach_msg_destroy(&buffer.message.header);
   return NULL;
 }
@@ -214,11 +207,15 @@ static void test_token_round_trips(void) {
 static void test_delayed_ack_does_not_resend(void) {
   make_private_port(&alpha_port);
   const char expected[] = "--trigger\0system_stats\0";
+  pthread_mutex_t reply_gate = PTHREAD_MUTEX_INITIALIZER;
+  /* Keep the reply unavailable until the sender returns. Sleeping here races
+   * with a sender that is descheduled before starting its receive timeout. */
+  assert(pthread_mutex_lock(&reply_gate) == 0);
   struct receiver_args args = {.port = alpha_port,
                                .expected = expected,
                                .expected_len = sizeof(expected),
                                .reply = "late",
-                               .delay_ms = 150};
+                               .reply_gate = &reply_gate};
   pthread_t receiver = start_receiver(&args);
 
   char *response = NULL;
@@ -226,7 +223,9 @@ static void test_delayed_ack_does_not_resend(void) {
       sketchybar_send("--trigger system_stats", "alpha", &response);
   assert(status == SKETCHYBAR_SENT_NO_ACK);
   assert(response == NULL);
+  assert(pthread_mutex_unlock(&reply_gate) == 0);
   join_receiver(receiver, &args);
+  assert(pthread_mutex_destroy(&reply_gate) == 0);
   assert_no_queued_message(alpha_port);
 
   unsigned int lookups_after_no_ack = lookup_count;
