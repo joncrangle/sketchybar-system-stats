@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
-use std::ptr::NonNull;
+use std::ffi::CString;
+use std::os::raw::{c_char, c_int};
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant};
 
@@ -10,33 +9,19 @@ const PORT_REFRESH_INTERVAL_SECS: u64 = 300;
 
 #[link(name = "sketchybar", kind = "static")]
 unsafe extern "C" {
-    fn sketchybar(message: *const c_char, bar_name: *const c_char) -> *mut c_char;
-    fn free_sketchybar_response(response: *mut c_char);
+    fn sketchybar_send(
+        message: *const c_char,
+        bar_name: *const c_char,
+        response: *mut *mut c_char,
+    ) -> c_int;
     fn cleanup_sketchybar();
     fn refresh_sketchybar_port(bar_name: *const c_char) -> bool;
 }
 
-struct SketchybarResponse {
-    ptr: NonNull<c_char>,
-}
-
-impl SketchybarResponse {
-    fn new(ptr: *mut c_char) -> Result<Self> {
-        let ptr = NonNull::new(ptr).context("Failed to get response from sketchybar")?;
-        Ok(Self { ptr })
-    }
-
-    unsafe fn as_c_str(&self) -> &CStr {
-        unsafe { CStr::from_ptr(self.ptr.as_ptr()) }
-    }
-}
-
-impl Drop for SketchybarResponse {
-    fn drop(&mut self) {
-        unsafe {
-            free_sketchybar_response(self.ptr.as_ptr());
-        }
-    }
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeliveryStatus {
+    Acknowledged,
+    SentWithoutAcknowledgment,
 }
 
 struct PortState {
@@ -45,10 +30,26 @@ struct PortState {
 }
 
 fn format_sketchybar_message(flag: &str, event: &str, payload: Option<&str>) -> String {
+    let operation = if flag == "trigger" {
+        format!("--add event {event} --trigger {event}")
+    } else {
+        format!("--{flag} {event}")
+    };
     match payload.map(str::trim).filter(|p| !p.is_empty()) {
-        Some(p) => format!("--{flag} {event} {p}"),
-        None => format!("--{flag} {event}"),
+        Some(p) => format!("{operation} {p}"),
+        None => operation,
     }
+}
+
+pub(crate) fn escape_quoted_value(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character == '\\' || character == '"' {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 pub struct Sketchybar {
@@ -72,7 +73,12 @@ impl Sketchybar {
     async fn maybe_refresh_port(&self) -> Result<()> {
         let mut state = self.port_state.lock().await;
         if state.last_refresh.elapsed() >= state.refresh_interval {
-            let refreshed = unsafe { refresh_sketchybar_port(self.bar_name.as_ptr()) };
+            let bar_name = self.bar_name.clone();
+            let refreshed = tokio::task::spawn_blocking(move || unsafe {
+                refresh_sketchybar_port(bar_name.as_ptr())
+            })
+            .await
+            .context("SketchyBar port refresh task failed")?;
             if !refreshed {
                 anyhow::bail!("Failed to refresh sketchybar port");
             }
@@ -87,34 +93,42 @@ impl Sketchybar {
         event: &str,
         payload: Option<&str>,
         verbose: bool,
-    ) -> Result<String> {
+    ) -> Result<DeliveryStatus> {
         self.maybe_refresh_port().await?;
 
         let message = format_sketchybar_message(flag, event, payload);
         let c_message =
             CString::new(message.as_str()).context("Failed to create CString for message")?;
+        let bar_name = self.bar_name.clone();
 
-        let response = SketchybarResponse::new(unsafe {
-            sketchybar(c_message.as_ptr(), self.bar_name.as_ptr())
-        })?;
+        tokio::task::spawn_blocking(move || {
+            // The C enum uses 0 for failed delivery, 1 for an acknowledgment,
+            // and 2 for delivery without a reply. No response copy is needed.
+            let status = match unsafe {
+                sketchybar_send(c_message.as_ptr(), bar_name.as_ptr(), std::ptr::null_mut())
+            } {
+                0 => anyhow::bail!("Failed to deliver command to SketchyBar"),
+                1 => DeliveryStatus::Acknowledged,
+                2 => DeliveryStatus::SentWithoutAcknowledgment,
+                other => anyhow::bail!("Unexpected SketchyBar delivery status: {other}"),
+            };
 
-        let response = unsafe {
-            response
-                .as_c_str()
-                .to_str()
-                .context("Failed to convert C string to Rust string")?
-                .to_owned()
-        };
+            if verbose {
+                let detail = match status {
+                    DeliveryStatus::Acknowledged => "acknowledged",
+                    DeliveryStatus::SentWithoutAcknowledgment => "no acknowledgment received",
+                };
+                println!(
+                    "Sent to SketchyBar ({detail}): (Bar: {}): {}",
+                    bar_name.to_str().unwrap_or("?"),
+                    message
+                );
+            }
 
-        if verbose {
-            println!(
-                "Successfully sent to SketchyBar: (Bar: {}): {}",
-                self.bar_name.to_str().unwrap_or("?"),
-                message
-            );
-        }
-
-        Ok(response)
+            Ok(status)
+        })
+        .await
+        .context("SketchyBar IPC task failed")?
     }
 }
 
@@ -156,7 +170,23 @@ mod tests {
     fn test_format_sketchybar_message_with_payload_trims_trailing_space() {
         assert_eq!(
             format_sketchybar_message("trigger", "system_stats", Some("CPU_USAGE=\"5%\" ")),
-            "--trigger system_stats CPU_USAGE=\"5%\""
+            "--add event system_stats --trigger system_stats CPU_USAGE=\"5%\""
+        );
+    }
+
+    #[test]
+    fn test_format_sketchybar_message_registers_event_before_trigger() {
+        assert_eq!(
+            format_sketchybar_message("trigger", "system_stats", None),
+            "--add event system_stats --trigger system_stats"
+        );
+    }
+
+    #[test]
+    fn test_escape_quoted_value_escapes_quotes_and_backslashes() {
+        assert_eq!(
+            escape_quoted_value(r#"Alice's \"Mac\""#),
+            r#"Alice's \\\"Mac\\\""#
         );
     }
 }

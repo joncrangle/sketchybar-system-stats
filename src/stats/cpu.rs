@@ -3,6 +3,16 @@ use sysinfo::{Components, System};
 
 use super::unit;
 
+/// Returns whether a temperature component represents a CPU sensor.
+///
+/// Intel sensor labels include `CPU` (for example `CPU Proximity`). Apple
+/// Silicon exposes performance and efficiency core temperatures through the
+/// `pACC` and `eACC` MTR sensors. PMU and SoC readings are not CPU core
+/// temperatures and must not be averaged into the result.
+fn is_cpu_temperature_sensor(label: &str) -> bool {
+    label.starts_with("CPU") || label.starts_with("pACC") || label.starts_with("eACC")
+}
+
 pub fn get_cpu_stats(
     s: &System,
     components: &Components,
@@ -31,12 +41,8 @@ pub fn get_cpu_stats(
                 let mut total_temp: f32 = 0.0;
                 let mut count: u32 = 0;
 
-                let cpu_labels = ["CPU", "PMU", "SOC"];
-
                 for component in components {
-                    if cpu_labels
-                        .iter()
-                        .any(|&label| component.label().contains(label))
+                    if is_cpu_temperature_sensor(component.label())
                         && let Some(temperature) = component.temperature()
                     {
                         total_temp += temperature;
@@ -73,6 +79,20 @@ pub fn get_cpu_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_cpu_temperature_sensor_selects_cpu_core_labels() {
+        assert!(is_cpu_temperature_sensor("CPU Proximity"));
+        assert!(is_cpu_temperature_sensor("pACC MTR Temp Sensor"));
+        assert!(is_cpu_temperature_sensor("eACC MTR Temp Sensor"));
+    }
+
+    #[test]
+    fn test_is_cpu_temperature_sensor_excludes_pmu_and_soc_labels() {
+        assert!(!is_cpu_temperature_sensor("PMU MTR Temp Sensor"));
+        assert!(!is_cpu_temperature_sensor("SOC MTR Temp Sensor"));
+        assert!(!is_cpu_temperature_sensor("GPU Proximity"));
+    }
 
     #[test]
     fn test_get_cpu_stats_all_flags_emit_expected_keys() {

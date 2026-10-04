@@ -20,6 +20,7 @@ struct ProcessedFlags<'a> {
     disk_flags: Option<Vec<&'a str>>,
     memory_flags: Option<Vec<&'a str>>,
     network_flags: Option<&'a [String]>,
+    system_flags: Option<Vec<&'a str>>,
     uptime_flags: Option<Vec<&'a str>>,
 }
 
@@ -34,6 +35,7 @@ struct StatsContext<'a> {
 struct StatsConfig<'a> {
     flags: ProcessedFlags<'a>,
     refresh_kind: sysinfo::RefreshKind,
+    system_stats: String,
 }
 
 fn to_str_refs(flags: Option<&[String]>) -> Option<Vec<&str>> {
@@ -47,6 +49,7 @@ fn process_cli_flags(cli: &cli::Cli) -> ProcessedFlags<'_> {
         disk_flags: to_str_refs(cli.disk.as_deref()),
         memory_flags: to_str_refs(cli.memory.as_deref()),
         network_flags: cli.network.as_deref(),
+        system_flags: to_str_refs(cli.system.as_deref()),
         uptime_flags: to_str_refs(cli.uptime.as_deref()),
     }
 }
@@ -79,29 +82,6 @@ fn validate_network_interfaces(
     Ok(())
 }
 
-async fn send_initial_system_stats(
-    cli: &cli::Cli,
-    sketchybar: &Sketchybar,
-    system: &mut System,
-    refresh_kind: &sysinfo::RefreshKind,
-    buf: &mut String,
-) -> Result<()> {
-    if cli.all || cli.system.is_some() {
-        system.refresh_specifics(*refresh_kind);
-        let system_flags = match &cli.system {
-            Some(flags) => flags.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
-            None => cli::ALL_SYSTEM_FLAGS.to_vec(),
-        };
-        buf.clear();
-        get_system_stats(&system_flags, buf);
-        sketchybar
-            .send_message("trigger", "system_stats", Some(buf), cli.verbose)
-            .await?;
-    }
-
-    Ok(())
-}
-
 #[cfg(target_os = "macos")]
 async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let refresh_kind = stats::build_refresh_kind();
@@ -116,19 +96,12 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
 
     let flags = process_cli_flags(cli);
     let mut message_buffer = String::with_capacity(512);
-
-    send_initial_system_stats(
-        cli,
-        sketchybar,
-        &mut system,
-        &refresh_kind,
-        &mut message_buffer,
-    )
-    .await?;
+    let system_stats = cache_system_stats(cli, &flags);
 
     let config = StatsConfig {
         flags,
         refresh_kind,
+        system_stats,
     };
 
     let mut context = StatsContext {
@@ -158,15 +131,18 @@ async fn run_stats_loop(
 
     loop {
         tokio::select! {
-            _ = ticker.tick() => {
-                match collect_and_send_stats(
+            result = async {
+                ticker.tick().await;
+                collect_and_send_stats(
                     cli,
                     sketchybar,
                     config,
                     context,
                     network_refresh_tick,
                     message_buffer,
-                ).await {
+                ).await
+            } => {
+                match result {
                     Ok(tick) => network_refresh_tick = tick,
                     Err(e) => {
                         eprintln!("Warning: failed to collect/send stats: {e:#}");
@@ -222,6 +198,18 @@ fn select_flags<'a>(
     } else {
         configured_flags
     }
+}
+
+fn cache_system_stats(cli: &cli::Cli, flags: &ProcessedFlags<'_>) -> String {
+    let mut cached = String::with_capacity(256);
+    if let Some(system_flags) = select_flags(
+        cli.all,
+        cli::ALL_SYSTEM_FLAGS,
+        flags.system_flags.as_deref(),
+    ) {
+        get_system_stats(system_flags, &mut cached);
+    }
+    cached
 }
 
 fn collect_stats_commands(
@@ -308,8 +296,10 @@ fn collect_stats_commands(
         config.flags.uptime_flags.as_deref(),
     );
     if let Some(uptime_flags) = uptime_flags {
-        get_uptime_stats(uptime_flags, buf);
+        get_uptime_stats(uptime_flags, cli.no_units, buf);
     }
+
+    buf.push_str(&config.system_stats);
 
     if buf.ends_with(' ') {
         buf.pop();
@@ -329,8 +319,8 @@ fn stable_bar_hash(bar: &str) -> u64 {
 
 fn lock_file_path(bar: Option<&str>) -> PathBuf {
     let filename = match bar {
+        Some("sketchybar") | None => "stats_provider.lock".to_string(),
         Some(name) => format!("stats_provider_{:016x}.lock", stable_bar_hash(name)),
-        None => "stats_provider.lock".to_string(),
     };
     std::env::temp_dir().join(filename)
 }
@@ -382,10 +372,6 @@ async fn main() -> Result<()> {
     let sketchybar =
         Sketchybar::new(cli.bar.as_deref()).context("Failed to create Sketchybar instance")?;
 
-    sketchybar
-        .send_message("add event", "system_stats", None, cli.verbose)
-        .await?;
-
     get_stats(&cli, &sketchybar).await?;
 
     Ok(())
@@ -393,14 +379,18 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use super::*;
 
     #[test]
     fn test_lock_file_path_distinct_for_different_bars() {
         let default_lock = lock_file_path(None);
+        let named_default_lock = lock_file_path(Some("sketchybar"));
         let bar1_lock = lock_file_path(Some("bar1"));
         let bar2_lock = lock_file_path(Some("bar2"));
 
+        assert_eq!(default_lock, named_default_lock);
         assert_ne!(default_lock, bar1_lock);
         assert_ne!(bar1_lock, bar2_lock);
         assert_eq!(bar1_lock, lock_file_path(Some("bar1")));
@@ -506,6 +496,7 @@ mod tests {
             disk_flags: None,
             memory_flags: None,
             network_flags: None,
+            system_flags: None,
             uptime_flags: None,
         };
 
@@ -513,6 +504,68 @@ mod tests {
         assert!(flags.disk_flags.is_none());
         assert!(flags.memory_flags.is_none());
         assert!(flags.uptime_flags.is_none());
+    }
+
+    #[test]
+    fn test_cache_system_stats_all_overrides_configured_subset() {
+        let cli = cli::Cli::try_parse_from(["stats_provider", "--all", "--system", "arch"])
+            .expect("--all and a system subset should parse together");
+        let flags = process_cli_flags(&cli);
+
+        let cached = cache_system_stats(&cli, &flags);
+
+        for key in [
+            "ARCH=\"",
+            "DISTRO=\"",
+            "HOST_NAME=\"",
+            "KERNEL_VERSION=\"",
+            "SYSTEM_NAME=\"",
+            "OS_VERSION=\"",
+            "LONG_OS_VERSION=\"",
+        ] {
+            assert!(cached.contains(key), "missing selected system key {key}");
+        }
+    }
+
+    #[test]
+    fn test_cache_system_stats_keeps_configured_subset_without_all() {
+        let cli = cli::Cli::try_parse_from(["stats_provider", "--system", "arch"])
+            .expect("system subset should parse");
+        let flags = process_cli_flags(&cli);
+
+        let cached = cache_system_stats(&cli, &flags);
+
+        assert!(cached.contains("ARCH=\""));
+        assert!(!cached.contains("DISTRO=\""));
+        assert!(!cached.contains("HOST_NAME=\""));
+    }
+
+    #[test]
+    fn test_collect_stats_commands_system_only_replays_cached_metadata() {
+        let cli = cli::Cli::try_parse_from(["stats_provider", "--system", "host_name"])
+            .expect("system-only selection should parse");
+        let config = StatsConfig {
+            flags: process_cli_flags(&cli),
+            refresh_kind: sysinfo::RefreshKind::nothing(),
+            system_stats: "HOST_NAME=\"cached host\" ".to_string(),
+        };
+        let mut system = System::new();
+        let mut disks = Disks::new();
+        let mut networks = Networks::new();
+        let mut components = Components::new();
+        let mut context = StatsContext {
+            system: &mut system,
+            disks: &mut disks,
+            networks: &mut networks,
+            components: &mut components,
+            network_baselines: NetworkRateBaselines::default(),
+        };
+        let mut buf = String::new();
+
+        let tick = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
+        assert_eq!(buf, "HOST_NAME=\"cached host\"");
+        collect_stats_commands(&cli, &config, &mut context, tick, &mut buf);
+        assert_eq!(buf, "HOST_NAME=\"cached host\"");
     }
 
     #[test]
@@ -546,6 +599,7 @@ mod tests {
         let config = StatsConfig {
             flags,
             refresh_kind: stats::build_refresh_kind(),
+            system_stats: "TEST_CACHED_METADATA=\"stable\" ".to_string(),
         };
         let mut system = System::new_with_specifics(stats::build_refresh_kind());
         let mut disks = Disks::new_with_refreshed_list();
@@ -561,6 +615,7 @@ mod tests {
         let mut buf = String::new();
 
         let updated_tick = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
+        assert!(buf.contains("TEST_CACHED_METADATA=\"stable\""));
 
         for key in ["CPU_COUNT=", "CPU_FREQUENCY=", "CPU_TEMP=", "CPU_USAGE="] {
             assert!(buf.contains(key), "missing CPU key {key} in: {buf}");
@@ -590,25 +645,6 @@ mod tests {
         assert!(buf.contains("NETWORK_RX_"), "missing network rx in: {buf}");
         assert!(buf.contains("NETWORK_TX_"), "missing network tx in: {buf}");
 
-        // System stats are startup-only (send_initial_system_stats), so the
-        // per-tick buffer must not contain any system keys even with --all.
-        // Keys carry the opening quote to avoid substring collisions with
-        // e.g. a NETWORK_RX_SYSTEM_NAME= key.
-        for key in [
-            "ARCH=\"",
-            "DISTRO=\"",
-            "HOST_NAME=\"",
-            "KERNEL_VERSION=\"",
-            "SYSTEM_NAME=\"",
-            "OS_VERSION=\"",
-            "LONG_OS_VERSION=\"",
-        ] {
-            assert!(
-                !buf.contains(key),
-                "system key {key} leaked into per-tick buffer: {buf}"
-            );
-        }
-
         // Battery is hardware-dependent: percentage and state are always
         // emitted together when a battery exists, otherwise the machine is
         // battery-less and no battery keys appear.
@@ -623,6 +659,9 @@ mod tests {
             updated_tick, 1,
             "tick 0 + 1 below refresh rate 5, got {updated_tick}"
         );
+
+        let _ = collect_stats_commands(&cli, &config, &mut context, updated_tick, &mut buf);
+        assert_eq!(buf.matches("TEST_CACHED_METADATA=\"stable\"").count(), 1);
     }
 
     #[test]
@@ -646,6 +685,7 @@ mod tests {
         let config = StatsConfig {
             flags,
             refresh_kind: stats::build_refresh_kind(),
+            system_stats: String::new(),
         };
         let mut system = System::new_with_specifics(stats::build_refresh_kind());
         let mut disks = Disks::new_with_refreshed_list();

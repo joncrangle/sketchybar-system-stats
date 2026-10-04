@@ -1,53 +1,55 @@
 use std::fmt::Write;
 use sysinfo::System;
 
+use crate::sketchybar::escape_quoted_value;
+
 fn system_value(value: Option<&str>) -> &str {
     value.unwrap_or("N/A")
+}
+
+fn write_system_stat(key: &str, value: &str, buf: &mut String) {
+    let _ = write!(buf, "{key}=\"{}\" ", escape_quoted_value(value));
 }
 
 pub fn get_system_stats(flags: &[&str], buf: &mut String) {
     for &flag in flags {
         match flag {
             "arch" => {
-                let _ = write!(buf, "ARCH=\"{}\" ", System::cpu_arch());
+                write_system_stat("ARCH", &System::cpu_arch(), buf);
             }
             "distro" => {
-                let _ = write!(buf, "DISTRO=\"{}\" ", System::distribution_id());
+                write_system_stat("DISTRO", &System::distribution_id(), buf);
             }
 
             "host_name" => {
-                let _ = write!(
+                write_system_stat(
+                    "HOST_NAME",
+                    system_value(System::host_name().as_deref()),
                     buf,
-                    "HOST_NAME=\"{}\" ",
-                    system_value(System::host_name().as_deref())
                 );
             }
             "kernel_version" => {
-                let _ = write!(
+                write_system_stat(
+                    "KERNEL_VERSION",
+                    system_value(System::kernel_version().as_deref()),
                     buf,
-                    "KERNEL_VERSION=\"{}\" ",
-                    system_value(System::kernel_version().as_deref())
                 );
             }
             "name" => {
-                let _ = write!(
-                    buf,
-                    "SYSTEM_NAME=\"{}\" ",
-                    system_value(System::name().as_deref())
-                );
+                write_system_stat("SYSTEM_NAME", system_value(System::name().as_deref()), buf);
             }
             "os_version" => {
-                let _ = write!(
+                write_system_stat(
+                    "OS_VERSION",
+                    system_value(System::os_version().as_deref()),
                     buf,
-                    "OS_VERSION=\"{}\" ",
-                    system_value(System::os_version().as_deref())
                 );
             }
             "long_os_version" => {
-                let _ = write!(
+                write_system_stat(
+                    "LONG_OS_VERSION",
+                    system_value(System::long_os_version().as_deref()),
                     buf,
-                    "LONG_OS_VERSION=\"{}\" ",
-                    system_value(System::long_os_version().as_deref())
                 );
             }
             _ => {}
@@ -80,5 +82,13 @@ mod tests {
     fn test_system_value_some_and_none() {
         assert_eq!(system_value(Some("darwin")), "darwin");
         assert_eq!(system_value(None), "N/A");
+    }
+
+    #[test]
+    fn test_write_system_stat_escapes_quotes_and_backslashes() {
+        let mut buf = String::new();
+        write_system_stat("HOST_NAME", "Alice's \"Mac\"\\work", &mut buf);
+
+        assert_eq!(buf, "HOST_NAME=\"Alice's \\\"Mac\\\"\\\\work\" ");
     }
 }

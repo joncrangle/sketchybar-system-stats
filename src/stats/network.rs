@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::time::Instant;
 
@@ -61,6 +61,16 @@ fn network_key_suffix(interface: &str) -> String {
         .collect()
 }
 
+/// Preserves selection order while returning each selected interface once.
+fn unique_interfaces(interfaces: &[String]) -> Vec<&str> {
+    let mut seen = HashSet::with_capacity(interfaces.len());
+    interfaces
+        .iter()
+        .map(String::as_str)
+        .filter(|interface| seen.insert(*interface))
+        .collect()
+}
+
 /// Converts a byte delta and the elapsed time into a rate in `KiB/s`.
 fn rate_kib_per_sec(delta_bytes: u64, elapsed_secs: f64) -> u64 {
     if elapsed_secs <= 0.0 || !elapsed_secs.is_finite() {
@@ -120,8 +130,8 @@ pub fn get_network_stats(
 
     match interfaces {
         Some(ifaces) => {
-            for interface in ifaces {
-                if let Some(data) = n.get(interface.as_str()) {
+            for interface in unique_interfaces(ifaces) {
+                if let Some(data) = n.get(interface) {
                     emit_stat(interface, data);
                 }
             }
@@ -143,6 +153,20 @@ mod tests {
         assert_eq!(network_key_suffix("en0"), "en0");
         assert_eq!(network_key_suffix("bridge.100"), "bridge_100");
         assert_eq!(network_key_suffix("utun-1"), "utun_1");
+    }
+
+    #[test]
+    fn test_get_network_stats_duplicate_interface_emits_one_rate_pair() {
+        let networks = Networks::new_with_refreshed_list();
+        let interface = networks.keys().next().expect("a network interface");
+        let interfaces = vec![interface.clone(), interface.clone()];
+        let mut baselines = NetworkRateBaselines::default();
+        let mut buf = String::new();
+        get_network_stats(&networks, Some(&interfaces), &mut baselines, true, &mut buf);
+
+        assert_eq!(buf.matches("NETWORK_RX_").count(), 1, "{buf}");
+        assert_eq!(buf.matches("NETWORK_TX_").count(), 1, "{buf}");
+        assert_eq!(baselines.by_interface.len(), 1);
     }
 
     #[test]
