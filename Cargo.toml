@@ -20,7 +20,7 @@ sysinfo = { version = "0.39.6", default-features = false, features = [
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "signal"] }
 
 [build-dependencies]
-cc = "1.5"
+cc = "1.6"
 
 [profile.release]
 opt-level = 3
