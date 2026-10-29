@@ -10,15 +10,17 @@ use anyhow::{Context, Result};
 use fs2::FileExt;
 use sketchybar::Sketchybar;
 use stats::{
-    NetworkRateBaselines, get_battery_stats, get_cpu_stats, get_disk_stats, get_memory_stats,
-    get_network_stats, get_system_stats, get_uptime_stats,
+    NetworkRateBaselines, get_battery_stats, get_cpu_stats, get_disk_stats, get_gpu_stats,
+    get_load_stats, get_memory_stats, get_network_stats, get_system_stats, get_uptime_stats,
 };
-use sysinfo::{Components, Disks, Networks, System};
+use sysinfo::{Components, Disks, Gpus, Networks, System};
 
 struct ProcessedFlags<'a> {
     battery_flags: Option<Vec<&'a str>>,
     cpu_flags: Option<Vec<&'a str>>,
     disk_flags: Option<Vec<&'a str>>,
+    gpu_flags: Option<Vec<&'a str>>,
+    load_flags: Option<Vec<&'a str>>,
     memory_flags: Option<Vec<&'a str>>,
     network_flags: Option<&'a [String]>,
     system_flags: Option<Vec<&'a str>>,
@@ -28,6 +30,7 @@ struct ProcessedFlags<'a> {
 struct StatsContext<'a> {
     system: &'a mut System,
     disks: &'a mut Disks,
+    gpus: &'a mut Gpus,
     networks: &'a mut Networks,
     components: &'a mut Components,
     network_baselines: NetworkRateBaselines,
@@ -48,6 +51,8 @@ fn process_cli_flags(cli: &cli::Cli) -> ProcessedFlags<'_> {
         battery_flags: to_str_refs(cli.battery.as_deref()),
         cpu_flags: to_str_refs(cli.cpu.as_deref()),
         disk_flags: to_str_refs(cli.disk.as_deref()),
+        gpu_flags: to_str_refs(cli.gpu.as_deref()),
+        load_flags: to_str_refs(cli.load.as_deref()),
         memory_flags: to_str_refs(cli.memory.as_deref()),
         network_flags: cli.network.as_deref(),
         system_flags: to_str_refs(cli.system.as_deref()),
@@ -101,6 +106,7 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     // These start empty: each tick refreshes, and so populates, only the ones the
     // selected stats read.
     let mut disks = Disks::new().context("Failed to initialize disk stats")?;
+    let mut gpus = Gpus::new().context("Failed to initialize GPU stats")?;
     let mut networks = Networks::new().context("Failed to initialize network stats")?;
     let mut components = Components::new().context("Failed to initialize component stats")?;
 
@@ -121,6 +127,7 @@ async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
     let mut context = StatsContext {
         system: &mut system,
         disks: &mut disks,
+        gpus: &mut gpus,
         networks: &mut networks,
         components: &mut components,
         network_baselines: NetworkRateBaselines::default(),
@@ -237,6 +244,16 @@ fn collect_stats_commands(
         cli::ALL_DISK_FLAGS,
         config.flags.disk_flags.as_deref(),
     );
+    let gpu_flags = select_flags(
+        cli.all,
+        cli::ALL_GPU_FLAGS,
+        config.flags.gpu_flags.as_deref(),
+    );
+    let load_flags = select_flags(
+        cli.all,
+        cli::ALL_LOAD_FLAGS,
+        config.flags.load_flags.as_deref(),
+    );
     let memory_flags = select_flags(
         cli.all,
         cli::ALL_MEMORY_FLAGS,
@@ -255,10 +272,13 @@ fn collect_stats_commands(
     );
 
     // Refresh only the sources the selected stats read. `refresh(true)` also picks
-    // up new interfaces and disks and drops the ones that are gone.
+    // up new interfaces, disks and GPUs and drops the ones that are gone.
     context.system.refresh_specifics(config.refresh_kind);
     if disk_flags.is_some() {
         context.disks.refresh(true);
+    }
+    if gpu_flags.is_some() {
+        context.gpus.refresh(true);
     }
     if cpu_flags.is_some_and(|flags| flags.contains(&"temperature")) {
         context.components.refresh(false);
@@ -283,6 +303,14 @@ fn collect_stats_commands(
 
     if let Some(disk_flags) = disk_flags {
         get_disk_stats(context.disks, disk_flags, cli.no_units, buf);
+    }
+
+    if let Some(gpu_flags) = gpu_flags {
+        get_gpu_stats(context.gpus, gpu_flags, cli.no_units, buf);
+    }
+
+    if let Some(load_flags) = load_flags {
+        get_load_stats(load_flags, buf);
     }
 
     if let Some(memory_flags) = memory_flags {
@@ -444,6 +472,8 @@ mod tests {
             battery: None,
             cpu: Some(vec!["usage".to_string()]),
             disk: None,
+            gpu: None,
+            load: None,
             memory: Some(vec!["ram_total".to_string()]),
             network: None,
             system: None,
@@ -470,6 +500,8 @@ mod tests {
             battery: None,
             cpu: Some(cpu_flags),
             disk: None,
+            gpu: None,
+            load: None,
             memory: None,
             network: None,
             system: None,
@@ -494,6 +526,8 @@ mod tests {
             battery_flags: None,
             cpu_flags: None,
             disk_flags: None,
+            gpu_flags: None,
+            load_flags: None,
             memory_flags: None,
             network_flags: None,
             system_flags: None,
@@ -551,11 +585,13 @@ mod tests {
         };
         let mut system = System::new().unwrap();
         let mut disks = Disks::new().unwrap();
+        let mut gpus = Gpus::new().unwrap();
         let mut networks = Networks::new().unwrap();
         let mut components = Components::new().unwrap();
         let mut context = StatsContext {
             system: &mut system,
             disks: &mut disks,
+            gpus: &mut gpus,
             networks: &mut networks,
             components: &mut components,
             network_baselines: NetworkRateBaselines::default(),
@@ -581,11 +617,13 @@ mod tests {
         };
         let mut system = System::new_with_specifics(refresh_kind).unwrap();
         let mut disks = Disks::new().unwrap();
+        let mut gpus = Gpus::new().unwrap();
         let mut networks = Networks::new().unwrap();
         let mut components = Components::new().unwrap();
         let mut context = StatsContext {
             system: &mut system,
             disks: &mut disks,
+            gpus: &mut gpus,
             networks: &mut networks,
             components: &mut components,
             network_baselines: NetworkRateBaselines::default(),
@@ -596,6 +634,7 @@ mod tests {
 
         assert!(buf.starts_with("CPU_COUNT=\""), "{buf}");
         assert!(context.disks.is_empty());
+        assert!(context.gpus.is_empty());
         assert!(context.networks.is_empty());
         assert!(context.components.is_empty());
     }
@@ -617,6 +656,8 @@ mod tests {
             battery: None,
             cpu: None,
             disk: None,
+            gpu: None,
+            load: None,
             memory: None,
             network: None,
             system: None,
@@ -637,11 +678,13 @@ mod tests {
         // Start empty like `get_stats`, so the first tick must populate these.
         let mut system = System::new_with_specifics(refresh_kind).unwrap();
         let mut disks = Disks::new().unwrap();
+        let mut gpus = Gpus::new().unwrap();
         let mut networks = Networks::new().unwrap();
         let mut components = Components::new().unwrap();
         let mut context = StatsContext {
             system: &mut system,
             disks: &mut disks,
+            gpus: &mut gpus,
             networks: &mut networks,
             components: &mut components,
             network_baselines: NetworkRateBaselines::default(),
@@ -674,6 +717,10 @@ mod tests {
             "SWP_USAGE=",
         ] {
             assert!(buf.contains(key), "missing memory key {key} in: {buf}");
+        }
+        assert!(buf.contains("GPU_USAGE=\""), "missing GPU usage in: {buf}");
+        for key in ["LOAD_AVG_1=\"", "LOAD_AVG_5=\"", "LOAD_AVG_15=\""] {
+            assert!(buf.contains(key), "missing load key {key} in: {buf}");
         }
         assert!(buf.contains("UPTIME=\""), "missing uptime in: {buf}");
         assert!(buf.contains("NETWORK_RX_"), "missing network rx in: {buf}");

@@ -56,10 +56,12 @@ Options:
   -b, --battery <BATTERY>...  Get battery stats [possible values: percentage, remaining, state, time_to_full]
   -c, --cpu <CPU>...          Get CPU stats [possible values: count, frequency, temperature, usage]
   -d, --disk <DISK>...        Get disk stats [possible values: count, free, total, usage, used]
+  -g, --gpu <GPU>...          Get GPU stats [possible values: usage]
+  -l, --load [<LOAD>...]      Get load averages over 1, 5 and 15 minutes (all if none given) [possible values: one, five, fifteen]
   -m, --memory <MEMORY>...    Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
   -n, --network <NETWORK>...  Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
   -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
-  -u, --uptime [<UPTIME>...]  Get uptime stats [possible values: week, day, hour, min, sec]
+  -u, --uptime [<UPTIME>...]  Get uptime stats (all units if none given) [possible values: week, day, hour, min, sec]
   -i, --interval <INTERVAL>   Refresh interval in seconds (1-3600) [default: 5]
       --bar <BAR>             Bar name (optional)
       --verbose               Enable verbose output
@@ -79,6 +81,15 @@ Example: trigger event with network rx/tx for `en0` at a refresh interval of 3 s
 ```bash
 stats_provider --network en0 --interval 3
 ```
+
+Example: trigger event with GPU usage and the 1-minute load average:
+
+```bash
+stats_provider --gpu usage --load one
+# Output: GPU_USAGE="42%" LOAD_AVG_1="4.35"
+```
+
+A bare `--load` selects all three load averages. On Macs with more than one GPU, `GPU_USAGE` reports the busiest one, and it is `N/A` when no GPU reports usage.
 
 Only the stats you select are collected on each refresh, so a smaller selection does less work.
 
@@ -107,7 +118,7 @@ Units are automatically sorted from largest to smallest, with intelligent carry-
 
 ### Output Format
 
-By default, all numeric values include their units (MHz, °C, %, GB, KiB/s). You can output raw numeric values without units using the `--no-units` flag:
+By default, all numeric values include their units (MHz, °C, %, GB, KiB/s); load averages have no unit. You can output raw numeric values without units using the `--no-units` flag:
 
 ```bash
 # With units (default)
@@ -134,7 +145,7 @@ Add the `--verbose` flag to see more detailed output:
 ```console
 $ stats_provider --cpu usage --disk usage --memory ram_usage --interval 2 --verbose
 SketchyBar Stats Provider is running.
-Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, bar: None, verbose: true, no_units: false }
+Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), gpu: None, load: None, memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, bar: None, verbose: true, no_units: false }
 Current message: CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Sent to SketchyBar (acknowledged): (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
@@ -166,13 +177,16 @@ Environment variables that can be provided by the `system_stats` event
 | `DISK_USAGE`             | Disk usage %                              |
 | `DISK_USED`              | Used disk space GB                        |
 | `DISTRO`                 | System distribution                       |
+| `GPU_USAGE`              | GPU usage % (busiest GPU)                 |
 | `HOST_NAME`              | System host name                          |
 | `KERNEL_VERSION`         | System kernel version                     |
+| `LOAD_AVG_1`             | Load average over 1 minute                |
+| `LOAD_AVG_5`             | Load average over 5 minutes               |
+| `LOAD_AVG_15`            | Load average over 15 minutes              |
 | `NETWORK_RX_{INTERFACE}` | Received KiB/s from specified interface   |
 | `NETWORK_TX_{INTERFACE}` | Transmitted KiB/s from specified interface |
 | `OS_VERSION`             | System OS version                         |
 | `LONG_OS_VERSION`        | System long OS version                    |
-| `RAM_TOTAL`              | Total memory GB                           |
 | `RAM_AVAILABLE`          | Available memory GB                       |
 | `RAM_TOTAL`              | Total memory GB                           |
 | `RAM_USAGE`              | Memory usage %                            |
