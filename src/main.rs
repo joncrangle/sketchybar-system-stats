@@ -2,6 +2,7 @@ mod cli;
 mod sketchybar;
 mod stats;
 
+use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 
@@ -64,9 +65,11 @@ fn validate_network_interfaces(
     }
 
     for interface in requested_interfaces {
-        if !networks.contains_key(interface.as_str()) {
-            let available_interfaces: Vec<String> =
-                networks.keys().map(|name| name.to_string()).collect();
+        if !networks.contains_key(OsStr::new(interface)) {
+            let available_interfaces: Vec<String> = networks
+                .keys()
+                .map(|name| name.to_string_lossy().into_owned())
+                .collect();
             let msg = format!(
                 "Network interface '{}' not found. Available interfaces: {}",
                 interface,
@@ -84,17 +87,28 @@ fn validate_network_interfaces(
 
 #[cfg(target_os = "macos")]
 async fn get_stats(cli: &cli::Cli, sketchybar: &Sketchybar) -> Result<()> {
-    let refresh_kind = stats::build_refresh_kind();
-    let mut system = System::new_with_specifics(refresh_kind);
-    let mut disks = Disks::new_with_refreshed_list();
-    let mut networks = Networks::new_with_refreshed_list();
-    let mut components = Components::new_with_refreshed_list();
+    let flags = process_cli_flags(cli);
+    let refresh_kind = stats::build_refresh_kind(
+        select_flags(cli.all, cli::ALL_CPU_FLAGS, flags.cpu_flags.as_deref()),
+        select_flags(
+            cli.all,
+            cli::ALL_MEMORY_FLAGS,
+            flags.memory_flags.as_deref(),
+        ),
+    );
+    let mut system =
+        System::new_with_specifics(refresh_kind).context("Failed to initialize system stats")?;
+    // These start empty: each tick refreshes, and so populates, only the ones the
+    // selected stats read.
+    let mut disks = Disks::new().context("Failed to initialize disk stats")?;
+    let mut networks = Networks::new().context("Failed to initialize network stats")?;
+    let mut components = Components::new().context("Failed to initialize component stats")?;
 
     if let Some(network_flags) = &cli.network {
+        networks.refresh(false);
         validate_network_interfaces(&networks, network_flags, cli.verbose)?;
     }
 
-    let flags = process_cli_flags(cli);
     let mut message_buffer = String::with_capacity(512);
     let system_stats = cache_system_stats(cli, &flags);
 
@@ -123,7 +137,6 @@ async fn run_stats_loop(
     context: &mut StatsContext<'_>,
     message_buffer: &mut String,
 ) -> Result<()> {
-    let mut network_refresh_tick = 0;
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
         .context("Failed to register SIGTERM handler")?;
     let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(cli.interval.into()));
@@ -133,20 +146,10 @@ async fn run_stats_loop(
         tokio::select! {
             result = async {
                 ticker.tick().await;
-                collect_and_send_stats(
-                    cli,
-                    sketchybar,
-                    config,
-                    context,
-                    network_refresh_tick,
-                    message_buffer,
-                ).await
+                collect_and_send_stats(cli, sketchybar, config, context, message_buffer).await
             } => {
-                match result {
-                    Ok(tick) => network_refresh_tick = tick,
-                    Err(e) => {
-                        eprintln!("Warning: failed to collect/send stats: {e:#}");
-                    }
+                if let Err(e) = result {
+                    eprintln!("Warning: failed to collect/send stats: {e:#}");
                 }
             }
             _ = tokio::signal::ctrl_c() => {
@@ -172,10 +175,9 @@ async fn collect_and_send_stats(
     sketchybar: &Sketchybar,
     config: &StatsConfig<'_>,
     context: &mut StatsContext<'_>,
-    network_refresh_tick: u32,
     buf: &mut String,
-) -> Result<u32> {
-    let updated_tick = collect_stats_commands(cli, config, context, network_refresh_tick, buf);
+) -> Result<()> {
+    collect_stats_commands(cli, config, context, buf);
 
     if cli.verbose {
         println!("Current message: {}", buf);
@@ -185,7 +187,7 @@ async fn collect_and_send_stats(
         .await
         .context("Failed to send stats to SketchyBar")?;
 
-    Ok(updated_tick)
+    Ok(())
 }
 
 fn select_flags<'a>(
@@ -216,37 +218,59 @@ fn collect_stats_commands(
     cli: &cli::Cli,
     config: &StatsConfig<'_>,
     context: &mut StatsContext<'_>,
-    network_refresh_tick: u32,
     buf: &mut String,
-) -> u32 {
+) {
     buf.clear();
-
-    context.system.refresh_specifics(config.refresh_kind);
-    context.disks.refresh(true);
-    context.components.refresh(false);
-
-    let mut updated_tick = network_refresh_tick + 1;
-    if updated_tick >= cli.network_refresh_rate {
-        *context.networks = Networks::new_with_refreshed_list();
-        updated_tick = 0;
-    } else {
-        context.networks.refresh(true);
-    }
 
     let battery_flags = select_flags(
         cli.all,
         cli::ALL_BATTERY_FLAGS,
         config.flags.battery_flags.as_deref(),
     );
-    if let Some(battery_flags) = battery_flags {
-        get_battery_stats(battery_flags, cli.no_units, buf);
-    }
-
     let cpu_flags = select_flags(
         cli.all,
         cli::ALL_CPU_FLAGS,
         config.flags.cpu_flags.as_deref(),
     );
+    let disk_flags = select_flags(
+        cli.all,
+        cli::ALL_DISK_FLAGS,
+        config.flags.disk_flags.as_deref(),
+    );
+    let memory_flags = select_flags(
+        cli.all,
+        cli::ALL_MEMORY_FLAGS,
+        config.flags.memory_flags.as_deref(),
+    );
+    let network_interfaces: Option<&[String]> = if cli.all {
+        None
+    } else {
+        config.flags.network_flags
+    };
+    let collect_network = cli.all || network_interfaces.is_some();
+    let uptime_flags = select_flags(
+        cli.all,
+        cli::ALL_UPTIME_FLAGS,
+        config.flags.uptime_flags.as_deref(),
+    );
+
+    // Refresh only the sources the selected stats read. `refresh(true)` also picks
+    // up new interfaces and disks and drops the ones that are gone.
+    context.system.refresh_specifics(config.refresh_kind);
+    if disk_flags.is_some() {
+        context.disks.refresh(true);
+    }
+    if cpu_flags.is_some_and(|flags| flags.contains(&"temperature")) {
+        context.components.refresh(false);
+    }
+    if collect_network {
+        context.networks.refresh(true);
+    }
+
+    if let Some(battery_flags) = battery_flags {
+        get_battery_stats(battery_flags, cli.no_units, buf);
+    }
+
     if let Some(cpu_flags) = cpu_flags {
         get_cpu_stats(
             context.system,
@@ -257,30 +281,15 @@ fn collect_stats_commands(
         );
     }
 
-    let disk_flags = select_flags(
-        cli.all,
-        cli::ALL_DISK_FLAGS,
-        config.flags.disk_flags.as_deref(),
-    );
     if let Some(disk_flags) = disk_flags {
         get_disk_stats(context.disks, disk_flags, cli.no_units, buf);
     }
 
-    let memory_flags = select_flags(
-        cli.all,
-        cli::ALL_MEMORY_FLAGS,
-        config.flags.memory_flags.as_deref(),
-    );
     if let Some(memory_flags) = memory_flags {
         get_memory_stats(context.system, memory_flags, cli.no_units, buf);
     }
 
-    let network_interfaces: Option<&[String]> = if cli.all {
-        None
-    } else {
-        config.flags.network_flags
-    };
-    if cli.all || network_interfaces.is_some() {
+    if collect_network {
         get_network_stats(
             context.networks,
             network_interfaces,
@@ -290,11 +299,6 @@ fn collect_stats_commands(
         );
     }
 
-    let uptime_flags = select_flags(
-        cli.all,
-        cli::ALL_UPTIME_FLAGS,
-        config.flags.uptime_flags.as_deref(),
-    );
     if let Some(uptime_flags) = uptime_flags {
         get_uptime_stats(uptime_flags, cli.no_units, buf);
     }
@@ -304,8 +308,6 @@ fn collect_stats_commands(
     if buf.ends_with(' ') {
         buf.pop();
     }
-
-    updated_tick
 }
 
 fn stable_bar_hash(bar: &str) -> u64 {
@@ -447,7 +449,6 @@ mod tests {
             system: None,
             uptime: None,
             interval: 5,
-            network_refresh_rate: 5,
             bar: None,
             verbose: false,
             no_units: false,
@@ -474,7 +475,6 @@ mod tests {
             system: None,
             uptime: None,
             interval: 5,
-            network_refresh_rate: 5,
             bar: None,
             verbose: false,
             no_units: false,
@@ -549,10 +549,10 @@ mod tests {
             refresh_kind: sysinfo::RefreshKind::nothing(),
             system_stats: "HOST_NAME=\"cached host\" ".to_string(),
         };
-        let mut system = System::new();
-        let mut disks = Disks::new();
-        let mut networks = Networks::new();
-        let mut components = Components::new();
+        let mut system = System::new().unwrap();
+        let mut disks = Disks::new().unwrap();
+        let mut networks = Networks::new().unwrap();
+        let mut components = Components::new().unwrap();
         let mut context = StatsContext {
             system: &mut system,
             disks: &mut disks,
@@ -562,15 +562,47 @@ mod tests {
         };
         let mut buf = String::new();
 
-        let tick = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
+        collect_stats_commands(&cli, &config, &mut context, &mut buf);
         assert_eq!(buf, "HOST_NAME=\"cached host\"");
-        collect_stats_commands(&cli, &config, &mut context, tick, &mut buf);
+        collect_stats_commands(&cli, &config, &mut context, &mut buf);
         assert_eq!(buf, "HOST_NAME=\"cached host\"");
     }
 
     #[test]
+    fn test_collect_stats_commands_skips_unselected_refreshes() {
+        let cli = cli::Cli::try_parse_from(["stats_provider", "--cpu", "count"])
+            .expect("CPU count selection should parse");
+        let flags = process_cli_flags(&cli);
+        let refresh_kind = stats::build_refresh_kind(flags.cpu_flags.as_deref(), None);
+        let config = StatsConfig {
+            flags,
+            refresh_kind,
+            system_stats: String::new(),
+        };
+        let mut system = System::new_with_specifics(refresh_kind).unwrap();
+        let mut disks = Disks::new().unwrap();
+        let mut networks = Networks::new().unwrap();
+        let mut components = Components::new().unwrap();
+        let mut context = StatsContext {
+            system: &mut system,
+            disks: &mut disks,
+            networks: &mut networks,
+            components: &mut components,
+            network_baselines: NetworkRateBaselines::default(),
+        };
+        let mut buf = String::new();
+
+        collect_stats_commands(&cli, &config, &mut context, &mut buf);
+
+        assert!(buf.starts_with("CPU_COUNT=\""), "{buf}");
+        assert!(context.disks.is_empty());
+        assert!(context.networks.is_empty());
+        assert!(context.components.is_empty());
+    }
+
+    #[test]
     fn test_validate_network_interfaces_rejects_unknown() {
-        let networks = Networks::new_with_refreshed_list();
+        let networks = Networks::new_with_refreshed_list().unwrap();
         let requested = vec!["definitely-not-an-interface-xyz".to_string()];
 
         let result = validate_network_interfaces(&networks, &requested, false);
@@ -590,21 +622,23 @@ mod tests {
             system: None,
             uptime: None,
             interval: 5,
-            network_refresh_rate: 5,
             bar: None,
             verbose: false,
             no_units: false,
         };
         let flags = process_cli_flags(&cli);
+        let refresh_kind =
+            stats::build_refresh_kind(Some(cli::ALL_CPU_FLAGS), Some(cli::ALL_MEMORY_FLAGS));
         let config = StatsConfig {
             flags,
-            refresh_kind: stats::build_refresh_kind(),
+            refresh_kind,
             system_stats: "TEST_CACHED_METADATA=\"stable\" ".to_string(),
         };
-        let mut system = System::new_with_specifics(stats::build_refresh_kind());
-        let mut disks = Disks::new_with_refreshed_list();
-        let mut networks = Networks::new_with_refreshed_list();
-        let mut components = Components::new_with_refreshed_list();
+        // Start empty like `get_stats`, so the first tick must populate these.
+        let mut system = System::new_with_specifics(refresh_kind).unwrap();
+        let mut disks = Disks::new().unwrap();
+        let mut networks = Networks::new().unwrap();
+        let mut components = Components::new().unwrap();
         let mut context = StatsContext {
             system: &mut system,
             disks: &mut disks,
@@ -614,7 +648,7 @@ mod tests {
         };
         let mut buf = String::new();
 
-        let updated_tick = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
+        collect_stats_commands(&cli, &config, &mut context, &mut buf);
         assert!(buf.contains("TEST_CACHED_METADATA=\"stable\""));
 
         for key in ["CPU_COUNT=", "CPU_FREQUENCY=", "CPU_TEMP=", "CPU_USAGE="] {
@@ -655,63 +689,16 @@ mod tests {
             );
         }
 
-        assert_eq!(
-            updated_tick, 1,
-            "tick 0 + 1 below refresh rate 5, got {updated_tick}"
+        assert!(
+            !context.disks.is_empty(),
+            "disks should be listed on the first tick"
+        );
+        assert!(
+            !context.networks.is_empty(),
+            "networks should be listed on the first tick"
         );
 
-        let _ = collect_stats_commands(&cli, &config, &mut context, updated_tick, &mut buf);
+        collect_stats_commands(&cli, &config, &mut context, &mut buf);
         assert_eq!(buf.matches("TEST_CACHED_METADATA=\"stable\"").count(), 1);
-    }
-
-    #[test]
-    fn test_collect_stats_commands_network_refresh_tick_wraps() {
-        let cli = cli::Cli {
-            all: true,
-            battery: None,
-            cpu: None,
-            disk: None,
-            memory: None,
-            network: None,
-            system: None,
-            uptime: None,
-            interval: 5,
-            network_refresh_rate: 5,
-            bar: None,
-            verbose: false,
-            no_units: false,
-        };
-        let flags = process_cli_flags(&cli);
-        let config = StatsConfig {
-            flags,
-            refresh_kind: stats::build_refresh_kind(),
-            system_stats: String::new(),
-        };
-        let mut system = System::new_with_specifics(stats::build_refresh_kind());
-        let mut disks = Disks::new_with_refreshed_list();
-        let mut networks = Networks::new_with_refreshed_list();
-        let mut components = Components::new_with_refreshed_list();
-        let mut context = StatsContext {
-            system: &mut system,
-            disks: &mut disks,
-            networks: &mut networks,
-            components: &mut components,
-            network_baselines: NetworkRateBaselines::default(),
-        };
-        let mut buf = String::new();
-
-        // tick 4 + 1 == refresh rate 5: re-list the interfaces and reset to 0.
-        let wrapped = collect_stats_commands(&cli, &config, &mut context, 4, &mut buf);
-        assert_eq!(
-            wrapped, 0,
-            "tick at refresh rate - 1 should wrap to 0, got {wrapped}"
-        );
-
-        // tick 0 + 1 < refresh rate 5: just increment.
-        let incremented = collect_stats_commands(&cli, &config, &mut context, 0, &mut buf);
-        assert_eq!(
-            incremented, 1,
-            "tick below refresh rate should increment, got {incremented}"
-        );
     }
 }

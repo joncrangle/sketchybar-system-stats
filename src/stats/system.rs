@@ -24,31 +24,35 @@ pub fn get_system_stats(flags: &[&str], buf: &mut String) {
             "host_name" => {
                 write_system_stat(
                     "HOST_NAME",
-                    system_value(System::host_name().as_deref()),
+                    system_value(System::host_name().ok().as_deref()),
                     buf,
                 );
             }
             "kernel_version" => {
                 write_system_stat(
                     "KERNEL_VERSION",
-                    system_value(System::kernel_version().as_deref()),
+                    system_value(System::kernel_version().ok().as_deref()),
                     buf,
                 );
             }
             "name" => {
-                write_system_stat("SYSTEM_NAME", system_value(System::name().as_deref()), buf);
+                write_system_stat(
+                    "SYSTEM_NAME",
+                    system_value(System::name().ok().as_deref()),
+                    buf,
+                );
             }
             "os_version" => {
                 write_system_stat(
                     "OS_VERSION",
-                    system_value(System::os_version().as_deref()),
+                    system_value(System::os_version().ok().as_deref()),
                     buf,
                 );
             }
             "long_os_version" => {
                 write_system_stat(
                     "LONG_OS_VERSION",
-                    system_value(System::long_os_version().as_deref()),
+                    system_value(System::long_os_version().ok().as_deref()),
                     buf,
                 );
             }

@@ -98,9 +98,9 @@ mod tests {
     fn test_get_cpu_stats_all_flags_emit_expected_keys() {
         use crate::cli;
 
-        let mut s = System::new_all();
+        let mut s = System::new_all().unwrap();
         s.refresh_all();
-        let components = Components::new_with_refreshed_list();
+        let components = Components::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_cpu_stats(&s, &components, cli::ALL_CPU_FLAGS, false, &mut buf);
@@ -122,9 +122,9 @@ mod tests {
 
     #[test]
     fn test_get_cpu_stats_empty_flags() {
-        let mut s = System::new_all();
+        let mut s = System::new_all().unwrap();
         s.refresh_all();
-        let components = Components::new_with_refreshed_list();
+        let components = Components::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_cpu_stats(&s, &components, &[], false, &mut buf);
@@ -134,8 +134,8 @@ mod tests {
 
     #[test]
     fn test_get_cpu_stats_temperature_na_has_no_unit() {
-        let s = System::new_all();
-        let components = Components::new();
+        let s = System::new_all().unwrap();
+        let components = Components::new().unwrap();
         let mut buf = String::new();
 
         get_cpu_stats(&s, &components, &["temperature"], false, &mut buf);
@@ -145,9 +145,9 @@ mod tests {
 
     #[test]
     fn test_get_cpu_stats_invalid_flag() {
-        let mut s = System::new_all();
+        let mut s = System::new_all().unwrap();
         s.refresh_all();
-        let components = Components::new_with_refreshed_list();
+        let components = Components::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_cpu_stats(&s, &components, &["invalid_flag"], false, &mut buf);

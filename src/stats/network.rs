@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
 use std::fmt::Write;
 use std::time::Instant;
 
@@ -111,7 +112,7 @@ pub fn get_network_stats(
     no_units: bool,
     buf: &mut String,
 ) {
-    baselines.retain_active(|iface| n.get(iface).is_some());
+    baselines.retain_active(|iface| n.contains_key(OsStr::new(iface)));
 
     let unit = unit(no_units, "KiB/s");
 
@@ -131,14 +132,17 @@ pub fn get_network_stats(
     match interfaces {
         Some(ifaces) => {
             for interface in unique_interfaces(ifaces) {
-                if let Some(data) = n.get(interface) {
+                if let Some(data) = n.get(OsStr::new(interface)) {
                     emit_stat(interface, data);
                 }
             }
         }
         None => {
+            // macOS interface names are ASCII, so non-UTF-8 names are not expected.
             for (interface, data) in n {
-                emit_stat(interface, data);
+                if let Some(interface) = interface.to_str() {
+                    emit_stat(interface, data);
+                }
             }
         }
     }
@@ -157,8 +161,13 @@ mod tests {
 
     #[test]
     fn test_get_network_stats_duplicate_interface_emits_one_rate_pair() {
-        let networks = Networks::new_with_refreshed_list();
-        let interface = networks.keys().next().expect("a network interface");
+        let networks = Networks::new_with_refreshed_list().unwrap();
+        let interface = networks
+            .keys()
+            .next()
+            .expect("a network interface")
+            .to_string_lossy()
+            .into_owned();
         let interfaces = vec![interface.clone(), interface.clone()];
         let mut baselines = NetworkRateBaselines::default();
         let mut buf = String::new();

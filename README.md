@@ -52,21 +52,20 @@ A simple system stats event provider for Sketchybar.
 Usage: stats_provider [OPTIONS]
 
 Options:
-  -a, --all                                        Get all stats
-  -b, --battery <BATTERY>...                       Get battery stats [possible values: percentage, remaining, state, time_to_full]
-  -c, --cpu <CPU>...                               Get CPU stats [possible values: count, frequency, temperature, usage]
-  -d, --disk <DISK>...                             Get disk stats [possible values: count, free, total, usage, used]
-  -m, --memory <MEMORY>...                         Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
-  -n, --network <NETWORK>...                       Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
-  -s, --system <SYSTEM>...                         Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
-  -u, --uptime [<UPTIME>...]                       Get uptime stats [possible values: week, day, hour, min, sec]
-  -i, --interval <INTERVAL>                        Refresh interval in seconds [default: 5]
-      --network-refresh-rate <NETWORK_REFRESH_RATE> Network refresh rate (how often to refresh network interface list, in stat intervals) [default: 5]
-      --bar <BAR>                                  Bar name (optional)
-      --verbose                                    Enable verbose output
-      --no-units                                   Output values without units
-  -h, --help                                       Print help
-  -V, --version                                    Print version
+  -a, --all                   Get all stats
+  -b, --battery <BATTERY>...  Get battery stats [possible values: percentage, remaining, state, time_to_full]
+  -c, --cpu <CPU>...          Get CPU stats [possible values: count, frequency, temperature, usage]
+  -d, --disk <DISK>...        Get disk stats [possible values: count, free, total, usage, used]
+  -m, --memory <MEMORY>...    Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
+  -n, --network <NETWORK>...  Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
+  -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
+  -u, --uptime [<UPTIME>...]  Get uptime stats [possible values: week, day, hour, min, sec]
+  -i, --interval <INTERVAL>   Refresh interval in seconds (1-3600) [default: 5]
+      --bar <BAR>             Bar name (optional)
+      --verbose               Enable verbose output
+      --no-units              Output values without units
+  -h, --help                  Print help
+  -V, --version               Print version
 ```
 
 Example: trigger event with cpu, disk and ram usage percentages at a refresh interval of 2 seconds:
@@ -75,12 +74,13 @@ Example: trigger event with cpu, disk and ram usage percentages at a refresh int
 stats_provider --cpu usage --disk usage --memory ram_usage --interval 2
 ```
 
-Example: network monitoring with optimized refresh rate:
+Example: trigger event with network rx/tx for `en0` at a refresh interval of 3 seconds:
 
 ```bash
-# Monitor network with interface refresh every 8 stat intervals
-stats_provider --network en0 --interval 3 --network-refresh-rate 8
+stats_provider --network en0 --interval 3
 ```
+
+Only the stats you select are collected on each refresh, so a smaller selection does less work.
 
 ### Uptime Usage
 
@@ -123,22 +123,9 @@ This is useful when you want to process the values programmatically or apply cus
 
 Uptime also respects `--no-units`. Use `--uptime sec --no-units` for a single value in total seconds. With multiple uptime units, the values remain separated by spaces in descending unit order, such as `"1 30"` for one hour and thirty minutes.
 
-### Network Optimization
+### Network Interfaces
 
-The `--network-refresh-rate` parameter controls how frequently the network interface list is refreshed:
-
-```bash
-# Default: refresh network interfaces every 5 stat intervals
-stats_provider --network en0 --interval 2 --network-refresh-rate 5
-
-# More frequent refresh (every 2 intervals) for dynamic environments
-stats_provider --network en0 wlan0 --network-refresh-rate 2
-
-# Less frequent refresh (every 10 intervals) for stable setups to reduce overhead
-stats_provider --network en0 --network-refresh-rate 10
-```
-
-**Recommendation:** Use higher values (8-15) for stable network setups, lower values (2-5) for environments where interfaces frequently change.
+Each interface passed to `--network` must exist when the provider starts (run `ifconfig -l` to list them). The interface list is rescanned on every refresh, so an interface that goes away and comes back, such as a VPN tunnel, is picked up again automatically. While it is gone, its `NETWORK_RX_*` and `NETWORK_TX_*` values are not sent.
 
 ### Verbose Output
 
@@ -147,7 +134,7 @@ Add the `--verbose` flag to see more detailed output:
 ```console
 $ stats_provider --cpu usage --disk usage --memory ram_usage --interval 2 --verbose
 SketchyBar Stats Provider is running.
-Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, network_refresh_rate: 5, bar: None, verbose: true, no_units: false }
+Stats Provider CLI: Cli { all: false, battery: None, cpu: Some(["usage"]), disk: Some(["usage"]), memory: Some(["ram_usage"]), network: None, system: None, uptime: None, interval: 2, bar: None, verbose: true, no_units: false }
 Current message: CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Sent to SketchyBar (acknowledged): (Bar: sketchybar): --add event system_stats --trigger system_stats CPU_USAGE="4%" DISK_USAGE="65%" RAM_USAGE="54%"
 Current message: CPU_USAGE="6%" DISK_USAGE="65%" RAM_USAGE="54%"
