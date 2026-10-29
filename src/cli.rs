@@ -9,6 +9,8 @@ pub const MAX_INTERVAL: u32 = 3600; // 1 hour max
 pub const ALL_BATTERY_FLAGS: &[&str] = &["percentage", "remaining", "state", "time_to_full"];
 pub const ALL_CPU_FLAGS: &[&str] = &["count", "frequency", "temperature", "usage"];
 pub const ALL_DISK_FLAGS: &[&str] = &["count", "free", "total", "usage", "used"];
+pub const ALL_GPU_FLAGS: &[&str] = &["usage"];
+pub const ALL_LOAD_FLAGS: &[&str] = &["one", "five", "fifteen"];
 pub const ALL_RAM_FLAGS: &[&str] = &["ram_available", "ram_total", "ram_usage", "ram_used"];
 pub const ALL_SWP_FLAGS: &[&str] = &["swp_free", "swp_total", "swp_usage", "swp_used"];
 pub const ALL_MEMORY_FLAGS: &[&str] = &[
@@ -46,6 +48,12 @@ pub struct Cli {
 
     #[arg(short = 'd', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_DISK_FLAGS), help = "Get disk stats")]
     pub disk: Option<Vec<String>>,
+
+    #[arg(short = 'g', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_GPU_FLAGS), help = "Get GPU stats")]
+    pub gpu: Option<Vec<String>>,
+
+    #[arg(short = 'l', long, num_args = 0.., value_parser = clap::builder::PossibleValuesParser::new(ALL_LOAD_FLAGS), help = "Get load averages over 1, 5 and 15 minutes")]
+    pub load: Option<Vec<String>>,
 
     #[arg(short = 'm', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_MEMORY_FLAGS), help = "Get memory stats")]
     pub memory: Option<Vec<String>>,
@@ -88,6 +96,8 @@ pub fn validate_cli(cli: &Cli) -> Result<()> {
         && cli.battery.is_none()
         && cli.cpu.is_none()
         && cli.disk.is_none()
+        && cli.gpu.is_none()
+        && cli.load.is_none()
         && cli.memory.is_none()
         && cli.network.is_none()
         && cli.system.is_none()
@@ -110,6 +120,8 @@ mod tests {
             battery: None,
             cpu: None,
             disk: None,
+            gpu: None,
+            load: None,
             memory: None,
             network: None,
             system: None,
@@ -129,6 +141,8 @@ mod tests {
             battery: None,
             cpu: Some(vec!["usage".to_string()]),
             disk: None,
+            gpu: None,
+            load: None,
             memory: None,
             network: None,
             system: None,
@@ -148,6 +162,8 @@ mod tests {
             battery: None,
             cpu: None,
             disk: None,
+            gpu: None,
+            load: None,
             memory: None,
             network: None,
             system: None,
@@ -179,10 +195,12 @@ mod tests {
             &'static [&'static str],
             fn(&Cli) -> Option<&[String]>,
         );
-        let cases: [FlagCase; 6] = [
+        let cases: [FlagCase; 8] = [
             ("battery", ALL_BATTERY_FLAGS, |c| c.battery.as_deref()),
             ("cpu", ALL_CPU_FLAGS, |c| c.cpu.as_deref()),
             ("disk", ALL_DISK_FLAGS, |c| c.disk.as_deref()),
+            ("gpu", ALL_GPU_FLAGS, |c| c.gpu.as_deref()),
+            ("load", ALL_LOAD_FLAGS, |c| c.load.as_deref()),
             ("memory", ALL_MEMORY_FLAGS, |c| c.memory.as_deref()),
             ("system", ALL_SYSTEM_FLAGS, |c| c.system.as_deref()),
             ("uptime", ALL_UPTIME_FLAGS, |c| c.uptime.as_deref()),
@@ -209,7 +227,9 @@ mod tests {
 
     #[test]
     fn test_unknown_flag_values_are_rejected() {
-        for arg in ["battery", "cpu", "disk", "memory", "system", "uptime"] {
+        for arg in [
+            "battery", "cpu", "disk", "gpu", "load", "memory", "system", "uptime",
+        ] {
             let flag_arg = format!("--{arg}");
             let result = Cli::try_parse_from(["stats_provider", flag_arg.as_str(), "bogus"]);
             assert!(result.is_err(), "--{arg} should reject an unknown value");
@@ -223,6 +243,15 @@ mod tests {
 
         assert_eq!(parsed.uptime, Some(Vec::new()));
         assert!(parsed.no_units);
+    }
+
+    #[test]
+    fn test_load_flag_without_values_is_a_valid_selection() {
+        let parsed = Cli::try_parse_from(["stats_provider", "--load"])
+            .expect("bare --load should parse as an empty selection");
+
+        assert_eq!(parsed.load, Some(Vec::new()));
+        assert!(validate_cli(&parsed).is_ok());
     }
 
     #[test]

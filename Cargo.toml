@@ -14,6 +14,7 @@ starship-battery = "0.12.0"
 sysinfo = { version = "0.40.0", default-features = false, features = [
   "component",
   "disk",
+  "gpu",
   "network",
   "system",
 ] }
