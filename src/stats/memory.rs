@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_get_memory_stats_all_flags_emit_expected_keys() {
-        let mut s = System::new_all();
+        let mut s = System::new_all().unwrap();
         s.refresh_all();
         let mut buf = String::new();
 
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_get_memory_stats_empty_flags() {
-        let s = System::new_all();
+        let s = System::new_all().unwrap();
         let mut buf = String::new();
 
         get_memory_stats(&s, &[], false, &mut buf);

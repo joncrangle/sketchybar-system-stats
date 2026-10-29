@@ -48,7 +48,6 @@ fn get_mount_device_name(_mount_point: &std::path::Path) -> Option<String> {
 pub fn get_disk_stats(disks: &Disks, flags: &[&str], no_units: bool, buf: &mut String) {
     let mut seen_containers = HashSet::new();
     let unique_disks: Vec<_> = disks
-        .list()
         .iter()
         .filter(|disk| {
             let is_apfs = disk
@@ -127,7 +126,7 @@ mod tests {
     fn test_get_disk_stats_all_flags_emit_expected_keys() {
         use crate::cli;
 
-        let disks = Disks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_disk_stats(&disks, cli::ALL_DISK_FLAGS, false, &mut buf);
@@ -141,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_get_disk_stats_unknown_flag_ignored() {
-        let disks = Disks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_disk_stats(&disks, &["bogus"], false, &mut buf);
@@ -151,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_get_disk_stats_no_units() {
-        let disks = Disks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_disk_stats(&disks, &["total"], true, &mut buf);
@@ -163,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_get_disk_stats_empty_flags() {
-        let disks = Disks::new_with_refreshed_list();
+        let disks = Disks::new_with_refreshed_list().unwrap();
         let mut buf = String::new();
 
         get_disk_stats(&disks, &[], false, &mut buf);

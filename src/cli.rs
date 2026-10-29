@@ -3,11 +3,8 @@ use clap::Parser;
 
 // Default values as constants
 pub const DEFAULT_INTERVAL: u32 = 5;
-pub const DEFAULT_NETWORK_REFRESH_RATE: u32 = 5;
 pub const MIN_INTERVAL: u32 = 1;
 pub const MAX_INTERVAL: u32 = 3600; // 1 hour max
-pub const MIN_NETWORK_REFRESH_RATE: u32 = 1;
-pub const MAX_NETWORK_REFRESH_RATE: u32 = 100;
 
 pub const ALL_BATTERY_FLAGS: &[&str] = &["percentage", "remaining", "state", "time_to_full"];
 pub const ALL_CPU_FLAGS: &[&str] = &["count", "frequency", "temperature", "usage"];
@@ -71,14 +68,6 @@ pub struct Cli {
     )]
     pub interval: u32,
 
-    #[arg(
-        long,
-        default_value_t = DEFAULT_NETWORK_REFRESH_RATE,
-        value_parser = clap::value_parser!(u32).range((MIN_NETWORK_REFRESH_RATE as i64)..=(MAX_NETWORK_REFRESH_RATE as i64)),
-        help = "Network refresh rate (how often to refresh the network interface list, in stat intervals) (1-100)"
-    )]
-    pub network_refresh_rate: u32,
-
     #[arg(long, help = "Bar name (optional)")]
     pub bar: Option<String>,
 
@@ -126,7 +115,6 @@ mod tests {
             system: None,
             uptime: None,
             interval: DEFAULT_INTERVAL,
-            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
             bar: None,
             verbose: false,
             no_units: false,
@@ -146,7 +134,6 @@ mod tests {
             system: None,
             uptime: None,
             interval: DEFAULT_INTERVAL,
-            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
             bar: None,
             verbose: false,
             no_units: false,
@@ -166,7 +153,6 @@ mod tests {
             system: None,
             uptime: None,
             interval: DEFAULT_INTERVAL,
-            network_refresh_rate: DEFAULT_NETWORK_REFRESH_RATE,
             bar: None,
             verbose: false,
             no_units: false,
@@ -184,29 +170,6 @@ mod tests {
         assert!(Cli::try_parse_from(["stats_provider", "-i", max.as_str()]).is_ok());
         assert!(Cli::try_parse_from(["stats_provider", "-i", "0"]).is_err());
         assert!(Cli::try_parse_from(["stats_provider", "-i", max_plus_one.as_str()]).is_err());
-    }
-
-    #[test]
-    fn test_network_refresh_rate_range_validation_via_clap() {
-        let min = MIN_NETWORK_REFRESH_RATE.to_string();
-        let max = MAX_NETWORK_REFRESH_RATE.to_string();
-        let max_plus_one = (MAX_NETWORK_REFRESH_RATE + 1).to_string();
-
-        assert!(
-            Cli::try_parse_from(["stats_provider", "--network-refresh-rate", min.as_str()]).is_ok()
-        );
-        assert!(
-            Cli::try_parse_from(["stats_provider", "--network-refresh-rate", max.as_str()]).is_ok()
-        );
-        assert!(Cli::try_parse_from(["stats_provider", "--network-refresh-rate", "0"]).is_err());
-        assert!(
-            Cli::try_parse_from([
-                "stats_provider",
-                "--network-refresh-rate",
-                max_plus_one.as_str()
-            ])
-            .is_err()
-        );
     }
 
     #[test]
@@ -263,14 +226,11 @@ mod tests {
     }
 
     #[test]
-    fn test_interval_and_network_refresh_rate_defaults() {
+    fn test_interval_default() {
         let cli = Cli::try_parse_from(["stats_provider", "--all"]).unwrap();
 
         assert_eq!(cli.interval, DEFAULT_INTERVAL);
-        assert_eq!(cli.network_refresh_rate, DEFAULT_NETWORK_REFRESH_RATE);
         assert!((MIN_INTERVAL..=MAX_INTERVAL).contains(&cli.interval));
-        assert!(cli.network_refresh_rate >= MIN_NETWORK_REFRESH_RATE);
-        assert!(cli.network_refresh_rate <= MAX_NETWORK_REFRESH_RATE);
     }
 
     #[test]

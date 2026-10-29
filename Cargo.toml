@@ -1,6 +1,6 @@
 [package]
 name = "stats_provider"
-version = "0.9.2"
+version = "0.10.0"
 description = "A simple system stats event provider for Sketchybar."
 edition = "2024"
 build = "build.rs"
@@ -11,7 +11,7 @@ clap = { version = "4.6.7", features = ["derive"] }
 fs2 = "0.4.3"
 libc = "0.2"
 starship-battery = "0.12.0"
-sysinfo = { version = "0.39.6", default-features = false, features = [
+sysinfo = { version = "0.40.0", default-features = false, features = [
   "component",
   "disk",
   "network",
@@ -20,7 +20,7 @@ sysinfo = { version = "0.39.6", default-features = false, features = [
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "signal"] }
 
 [build-dependencies]
-cc = "1.8"
+cc = "1.10"
 
 [profile.release]
 opt-level = 3

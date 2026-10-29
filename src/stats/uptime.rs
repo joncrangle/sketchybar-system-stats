@@ -77,7 +77,9 @@ fn format_uptime(mut uptime_secs: u64, flags: &[&str], no_units: bool, buf: &mut
 }
 
 pub fn get_uptime_stats(flags: &[&str], no_units: bool, buf: &mut String) {
-    format_uptime(System::uptime(), flags, no_units, buf);
+    if let Ok(uptime_secs) = System::uptime() {
+        format_uptime(uptime_secs, flags, no_units, buf);
+    }
 }
 
 #[cfg(test)]
