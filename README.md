@@ -57,11 +57,11 @@ Options:
   -c, --cpu <CPU>...          Get CPU stats [possible values: count, frequency, temperature, usage]
   -d, --disk <DISK>...        Get disk stats [possible values: count, free, total, usage, used]
   -g, --gpu <GPU>...          Get GPU stats [possible values: usage]
-  -l, --load [<LOAD>...]      Get load averages over 1, 5 and 15 minutes [possible values: one, five, fifteen]
+  -l, --load [<LOAD>...]      Get load averages over 1, 5 and 15 minutes (all if none given) [possible values: one, five, fifteen]
   -m, --memory <MEMORY>...    Get memory stats [possible values: ram_available, ram_total, ram_usage, ram_used, swp_free, swp_total, swp_usage, swp_used]
   -n, --network <NETWORK>...  Network rx/tx in KiB/s. Specify network interfaces (e.g., -n eth0 en0 lo0). At least one is required.
   -s, --system <SYSTEM>...    Get system stats [possible values: arch, distro, host_name, kernel_version, name, os_version, long_os_version]
-  -u, --uptime [<UPTIME>...]  Get uptime stats [possible values: week, day, hour, min, sec]
+  -u, --uptime [<UPTIME>...]  Get uptime stats (all units if none given) [possible values: week, day, hour, min, sec]
   -i, --interval <INTERVAL>   Refresh interval in seconds (1-3600) [default: 5]
       --bar <BAR>             Bar name (optional)
       --verbose               Enable verbose output

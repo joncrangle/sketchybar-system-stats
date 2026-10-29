@@ -52,7 +52,7 @@ pub struct Cli {
     #[arg(short = 'g', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_GPU_FLAGS), help = "Get GPU stats")]
     pub gpu: Option<Vec<String>>,
 
-    #[arg(short = 'l', long, num_args = 0.., value_parser = clap::builder::PossibleValuesParser::new(ALL_LOAD_FLAGS), help = "Get load averages over 1, 5 and 15 minutes")]
+    #[arg(short = 'l', long, num_args = 0.., value_parser = clap::builder::PossibleValuesParser::new(ALL_LOAD_FLAGS), help = "Get load averages over 1, 5 and 15 minutes (all if none given)")]
     pub load: Option<Vec<String>>,
 
     #[arg(short = 'm', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_MEMORY_FLAGS), help = "Get memory stats")]
@@ -64,7 +64,7 @@ pub struct Cli {
     #[arg(short = 's', long, num_args = 1.., value_parser = clap::builder::PossibleValuesParser::new(ALL_SYSTEM_FLAGS), help = "Get system stats")]
     pub system: Option<Vec<String>>,
 
-    #[arg(short = 'u', long, num_args = 0.., value_parser = clap::builder::PossibleValuesParser::new(ALL_UPTIME_FLAGS), help = "Get uptime stats")]
+    #[arg(short = 'u', long, num_args = 0.., value_parser = clap::builder::PossibleValuesParser::new(ALL_UPTIME_FLAGS), help = "Get uptime stats (all units if none given)")]
     pub uptime: Option<Vec<String>>,
 
     #[arg(
