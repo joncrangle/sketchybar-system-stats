@@ -11,7 +11,7 @@ clap = { version = "4.6.7", features = ["derive"] }
 fs2 = "0.4.3"
 libc = "0.2"
 starship-battery = "0.12.0"
-sysinfo = { version = "0.40.0", default-features = false, features = [
+sysinfo = { version = "0.40.3", default-features = false, features = [
   "component",
   "disk",
   "gpu",
@@ -21,7 +21,7 @@ sysinfo = { version = "0.40.0", default-features = false, features = [
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "signal"] }
 
 [build-dependencies]
-cc = "1.10"
+cc = "1.11.1"
 
 [profile.release]
 opt-level = 3
